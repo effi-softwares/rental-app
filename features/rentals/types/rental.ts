@@ -412,8 +412,13 @@ export type RentalDetailResponse = {
 		canInitiateReturn: boolean
 		canResolveDeposit: boolean
 		canCloseRental: boolean
+		canCompleteReturn: boolean
 		canCancel: boolean
 		missingPickupInspection: boolean
+		hasReturnInspection: boolean
+		hasOutstandingScheduledBalance: boolean
+		hasOutstandingExtraCharges: boolean
+		requiresDepositResolution: boolean
 		hasOpenExtraCharges: boolean
 	}
 	inspections: RentalInspectionSummary[]
@@ -634,6 +639,7 @@ export type CreateRentalChargePayload = {
 	description?: string
 	dueAt?: string | null
 	linkedDamageId?: string | null
+	metadata?: Record<string, unknown>
 }
 
 export type UpdateRentalChargePayload = Partial<CreateRentalChargePayload> & {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { AuthPageShell } from "@/components/auth/auth-page-shell"
+import { AuthPanel } from "@/components/auth/auth-panel"
 import { SignInForm } from "@/components/auth/sign-in-form"
 import { routes } from "@/config/routes"
 import { auth } from "@/lib/auth"
@@ -31,14 +32,17 @@ export default async function SignInPage() {
 
 	return (
 		<AuthPageShell
+			eyebrow="Secure sign in"
 			title="Welcome back"
 			description="Sign in to manage rentals, teams, customers, and gallery operations."
+			visualVariant="sign-in"
+			contentWidth="sm"
 		>
 			<Suspense
 				fallback={
-					<div className="w-full max-w-md rounded-lg border border-border/70 bg-card p-6 text-sm text-muted-foreground">
+					<AuthPanel className="text-sm text-muted-foreground">
 						Loading sign-in...
-					</div>
+					</AuthPanel>
 				}
 			>
 				<SignInForm />

@@ -20,8 +20,11 @@ export default async function InvitationSetupPage({
 
 	return (
 		<AuthPageShell
+			eyebrow="Invited account"
 			title="Create invited account"
 			description="Create the invited account directly from this organization invitation."
+			visualVariant="invitation"
+			contentWidth="md"
 		>
 			<InvitationSetupFlow invitationId={invitationId} />
 		</AuthPageShell>

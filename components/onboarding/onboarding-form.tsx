@@ -1,31 +1,17 @@
 "use client"
 
-import {
-	Building2,
-	CheckCircle2,
-	ChevronLeft,
-	ChevronRight,
-	ImagePlus,
-	Sparkles,
-} from "lucide-react"
+import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { type FormEvent, useMemo, useRef, useState } from "react"
 
+import { AuthInlineMessage, AuthPanel } from "@/components/auth/auth-panel"
 import {
 	OrganizationLogoPicker,
 	type OrganizationLogoPickerHandle,
 } from "@/components/organizations/organization-logo-picker"
 import { Button } from "@/components/ui/button"
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { routes } from "@/config/routes"
 import { useCreateOrganizationMutation } from "@/features/main/mutations/use-create-organization-mutation"
 import { signUpOnboardingGateApiPath } from "@/lib/auth-flow"
@@ -36,23 +22,7 @@ type OnboardingFormProps = {
 	flow: "sign-up" | "app-setup"
 }
 
-const onboardingSteps = [
-	{
-		key: "details",
-		label: "Organization",
-		icon: Building2,
-	},
-	{
-		key: "logo",
-		label: "Logo",
-		icon: ImagePlus,
-	},
-	{
-		key: "review",
-		label: "Review",
-		icon: CheckCircle2,
-	},
-] as const
+const onboardingStepCount = 3
 
 export function OnboardingForm({ userName, flow }: OnboardingFormProps) {
 	const router = useRouter()
@@ -64,9 +34,6 @@ export function OnboardingForm({ userName, flow }: OnboardingFormProps) {
 	const logoPickerRef = useRef<OrganizationLogoPickerHandle | null>(null)
 
 	const slug = useMemo(() => toSlug(orgName), [orgName])
-	const progressPercent = Math.round(
-		(currentStep / onboardingSteps.length) * 100,
-	)
 
 	const badgeLabel = flow === "sign-up" ? "Sign-up flow" : "Workspace setup"
 	const description =
@@ -126,7 +93,7 @@ export function OnboardingForm({ userName, flow }: OnboardingFormProps) {
 			return
 		}
 
-		setCurrentStep((step) => Math.min(step + 1, onboardingSteps.length))
+		setCurrentStep((step) => Math.min(step + 1, onboardingStepCount))
 	}
 
 	function onPreviousStep() {
@@ -135,160 +102,140 @@ export function OnboardingForm({ userName, flow }: OnboardingFormProps) {
 	}
 
 	return (
-		<Card className="w-full max-w-lg border-border/70">
-			<CardHeader>
-				<div className="mb-1 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-primary/10 px-4 text-primary text-sm font-medium">
+		<AuthPanel className="space-y-6">
+			<div className="space-y-3">
+				<div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
 					<Sparkles className="size-4" />
 					{badgeLabel}
 				</div>
-				<CardTitle className="text-xl">Welcome, {userName}</CardTitle>
-				<CardDescription>{description}</CardDescription>
-
-				<div className="space-y-3 pt-2">
-					<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-						<div
-							className="h-full rounded-full bg-primary transition-all duration-300"
-							style={{ width: `${progressPercent}%` }}
-						/>
-					</div>
-
-					<div className="grid grid-cols-3 gap-2">
-						{onboardingSteps.map((step, index) => {
-							const stepNumber = index + 1
-							const isActive = currentStep === stepNumber
-							const isComplete = currentStep > stepNumber
-							const StepIcon = step.icon
-
-							return (
-								<div
-									key={step.key}
-									className={`flex h-11 items-center justify-center gap-2 rounded-md border px-2 text-xs font-medium sm:text-sm ${
-										isActive
-											? "border-primary bg-primary/10 text-primary"
-											: isComplete
-												? "border-primary/40 bg-primary/5 text-primary"
-												: "border-border text-muted-foreground"
-									}`}
-								>
-									<StepIcon className="size-4" />
-									{step.label}
-								</div>
-							)
-						})}
-					</div>
+				<div>
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Welcome, {userName}
+					</p>
+					<p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+						{description}
+					</p>
 				</div>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={onSubmit}>
-					<FieldGroup>
-						{currentStep === 1 ? (
-							<>
-								<Field>
-									<FieldLabel htmlFor="organizationName">
-										Organization name
-									</FieldLabel>
-									<Input
-										id="organizationName"
-										name="organizationName"
-										value={orgName}
-										onChange={(event) => setOrgName(event.target.value)}
-										placeholder="Acme Rentals"
-										required
-										className="h-11"
-									/>
-								</Field>
+			</div>
 
-								<Field>
-									<FieldLabel htmlFor="organizationSlug">
-										Slug preview
-									</FieldLabel>
-									<Input
-										id="organizationSlug"
-										value={slug || "-"}
-										readOnly
-										className="text-muted-foreground h-11"
-									/>
-								</Field>
-
-								<div className="rounded-lg border bg-muted/30 p-3">
-									<p className="text-muted-foreground text-xs">
-										The slug is used to identify your organization in links and
-										API scope.
-									</p>
-								</div>
-							</>
-						) : null}
-
-						{currentStep >= 2 ? (
-							<div className={currentStep === 2 ? "" : "hidden"}>
-								<OrganizationLogoPicker
-									ref={logoPickerRef}
-									organizationName={orgName}
+			<form onSubmit={onSubmit}>
+				<FieldGroup className="gap-5">
+					{currentStep === 1 ? (
+						<>
+							<Field>
+								<FieldLabel htmlFor="organizationName">
+									Organization name
+								</FieldLabel>
+								<Input
+									id="organizationName"
+									name="organizationName"
+									value={orgName}
+									onChange={(event) => setOrgName(event.target.value)}
+									placeholder="Acme Rentals"
+									required
+									className="h-12 rounded-xl"
 								/>
+							</Field>
+
+							<Field>
+								<FieldLabel htmlFor="organizationSlug">Slug preview</FieldLabel>
+								<Input
+									id="organizationSlug"
+									value={slug || "-"}
+									readOnly
+									className="h-12 rounded-xl text-muted-foreground"
+								/>
+							</Field>
+
+							<AuthInlineMessage>
+								The slug identifies your organization in workspace links and API
+								scope.
+							</AuthInlineMessage>
+						</>
+					) : null}
+
+					{currentStep >= 2 ? (
+						<div className={currentStep === 2 ? "" : "hidden"}>
+							<OrganizationLogoPicker
+								ref={logoPickerRef}
+								organizationName={orgName}
+							/>
+						</div>
+					) : null}
+
+					{currentStep === 3 ? (
+						<div className="space-y-4">
+							<div className="rounded-[1.5rem] border border-border/70 bg-muted/25 p-5">
+								<p className="text-sm font-semibold text-foreground">
+									Review organization setup
+								</p>
+								<dl className="mt-4 space-y-3 text-sm">
+									<div className="flex justify-between gap-3">
+										<dt className="text-muted-foreground">Organization name</dt>
+										<dd className="font-medium">{orgName || "-"}</dd>
+									</div>
+									<div className="flex justify-between gap-3">
+										<dt className="text-muted-foreground">Slug</dt>
+										<dd className="font-medium">{slug || "-"}</dd>
+									</div>
+								</dl>
 							</div>
-						) : null}
 
-						{currentStep === 3 ? (
-							<div className="space-y-4">
-								<div className="rounded-lg border p-4">
-									<p className="text-sm font-medium">
-										Review organization setup
-									</p>
-									<dl className="mt-3 space-y-2 text-sm">
-										<div className="flex justify-between gap-3">
-											<dt className="text-muted-foreground">
-												Organization name
-											</dt>
-											<dd className="font-medium">{orgName || "-"}</dd>
-										</div>
-										<div className="flex justify-between gap-3">
-											<dt className="text-muted-foreground">Slug</dt>
-											<dd className="font-medium">{slug || "-"}</dd>
-										</div>
-									</dl>
-								</div>
+							<AuthInlineMessage>
+								When you create the organization, your selected logo becomes the
+								workspace identity for navigation and invite surfaces.
+							</AuthInlineMessage>
+						</div>
+					) : null}
 
-								<div className="rounded-lg border bg-muted/30 p-3">
-									<p className="text-muted-foreground text-xs">
-										When you create the organization, your selected logo will be
-										uploaded and used as the organization identity.
-									</p>
-								</div>
-							</div>
-						) : null}
+					{error ? (
+						<AuthInlineMessage variant="destructive">{error}</AuthInlineMessage>
+					) : null}
 
-						{error ? <p className="text-destructive text-sm">{error}</p> : null}
+					<div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<Button
+							type="button"
+							variant="outline"
+							size="lg"
+							className="h-12 rounded-xl"
+							disabled={currentStep === 1 || isSubmitting}
+							onClick={onPreviousStep}
+						>
+							<ChevronLeft className="size-4" />
+							Back
+						</Button>
 
-						<Separator />
+						<div className="flex items-center justify-between gap-3 sm:justify-end">
+							<p className="text-sm font-medium text-muted-foreground">
+								{currentStep} of {onboardingStepCount}
+							</p>
 
-						<div className="flex flex-wrap items-center justify-between gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								className="h-11"
-								disabled={currentStep === 1 || isSubmitting}
-								onClick={onPreviousStep}
-							>
-								<ChevronLeft className="size-4" />
-								Back
-							</Button>
-
-							{currentStep < onboardingSteps.length ? (
-								<Button type="button" className="h-11" onClick={onNextStep}>
+							{currentStep < onboardingStepCount ? (
+								<Button
+									type="button"
+									size="lg"
+									className="h-12 rounded-xl"
+									onClick={onNextStep}
+								>
 									Next
 									<ChevronRight className="size-4" />
 								</Button>
 							) : (
-								<Button type="submit" className="h-11" disabled={isSubmitting}>
+								<Button
+									type="submit"
+									size="lg"
+									className="h-12 rounded-xl"
+									disabled={isSubmitting}
+								>
 									{isSubmitting
 										? "Creating organization..."
 										: "Create organization"}
 								</Button>
 							)}
 						</div>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+					</div>
+				</FieldGroup>
+			</form>
+		</AuthPanel>
 	)
 }

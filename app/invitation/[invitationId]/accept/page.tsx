@@ -20,8 +20,11 @@ export default async function InvitationAcceptPage({
 
 	return (
 		<AuthPageShell
+			eyebrow="Team invitation"
 			title="Organization invitation"
 			description="Review the invitation, sign in with the invited account, or continue to account setup."
+			visualVariant="invitation"
+			contentWidth="md"
 		>
 			<InvitationAcceptFlow invitationId={invitationId} />
 		</AuthPageShell>

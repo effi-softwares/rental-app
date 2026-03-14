@@ -727,9 +727,14 @@ async function buildRentalDetailResponse(
 		0,
 	)
 	const hasPickupInspection = inspections.some((row) => row.stage === "pickup")
+	const hasReturnInspection = inspections.some((row) => row.stage === "return")
 	const hasOpenExtraCharges = extraCharges.some(
 		(row) => row.status === "open" || row.status === "partially_paid",
 	)
+	const hasOutstandingScheduledBalance = scheduledOutstanding > 0
+	const hasOutstandingExtraCharges = extraChargesOutstanding > 0
+	const requiresDepositResolution =
+		depositAmount > 0 && depositHeld > 0 && rentalRecord.status !== "cancelled"
 	const balanceDue = Math.max(
 		scheduledOutstanding + extraChargesOutstanding - depositApplied,
 		0,
@@ -761,6 +766,13 @@ async function buildRentalDetailResponse(
 			rentalRecord.status !== "cancelled",
 		canCloseRental:
 			rentalRecord.status === "active" || rentalRecord.status === "scheduled",
+		canCompleteReturn:
+			(rentalRecord.status === "active" ||
+				rentalRecord.status === "scheduled") &&
+			hasReturnInspection &&
+			!hasOutstandingScheduledBalance &&
+			!hasOutstandingExtraCharges &&
+			!requiresDepositResolution,
 		canCancel:
 			rentalRecord.status === "draft" ||
 			rentalRecord.status === "awaiting_payment" ||
@@ -771,6 +783,10 @@ async function buildRentalDetailResponse(
 				rentalRecord.status === "active" ||
 				rentalRecord.status === "completed") &&
 			!hasPickupInspection,
+		hasReturnInspection,
+		hasOutstandingScheduledBalance,
+		hasOutstandingExtraCharges,
+		requiresDepositResolution,
 		hasOpenExtraCharges,
 	}
 

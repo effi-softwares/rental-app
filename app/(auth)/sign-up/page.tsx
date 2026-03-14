@@ -30,8 +30,11 @@ export default async function SignUpPage() {
 
 	return (
 		<AuthPageShell
+			eyebrow="Owner registration"
 			title="Create your workspace account"
 			description="Set up your owner account and start configuring your rental operations dashboard."
+			visualVariant="sign-up"
+			contentWidth="md"
 		>
 			<SignUpForm />
 		</AuthPageShell>

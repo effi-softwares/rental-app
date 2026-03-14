@@ -2,7 +2,7 @@
 
 import Avvvatars from "avvvatars-react"
 import Avatar from "boring-avatars"
-import { ImagePlus, RefreshCw } from "lucide-react"
+import { ImagePlus, RefreshCw, Sparkles, Upload } from "lucide-react"
 import {
 	forwardRef,
 	useImperativeHandle,
@@ -15,6 +15,7 @@ import Cropper, { type Area } from "react-easy-crop"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createCroppedImageFile } from "@/lib/media/client-crop"
 import { generateBlurDataUrl } from "@/lib/media/client-image"
 import { toSlug } from "@/lib/utils"
@@ -176,54 +177,49 @@ export const OrganizationLogoPicker = forwardRef<
 	}))
 
 	return (
-		<div className="space-y-4 rounded-lg border p-4">
+		<div className="space-y-5 rounded-[1.5rem] border border-border/70 bg-muted/15 p-5 sm:p-6">
 			<div className="space-y-1">
-				<p className="text-sm font-semibold">Organization logo</p>
-				<p className="text-muted-foreground text-xs">
+				<p className="text-base font-semibold tracking-tight">
+					Organization logo
+				</p>
+				<p className="text-muted-foreground text-sm">
 					Choose an avatar style or upload and edit your own image.
 				</p>
 			</div>
 
-			<div className="grid grid-cols-2 gap-2">
-				<Button
-					type="button"
-					variant={logoMode === "avatar" ? "default" : "secondary"}
-					className="h-11"
-					onClick={() => {
-						setLogoMode("avatar")
-						setPickerError(null)
-					}}
-				>
-					Generate avatar
-				</Button>
-				<Button
-					type="button"
-					variant={logoMode === "upload" ? "default" : "secondary"}
-					className="h-11"
-					onClick={() => {
-						setLogoMode("upload")
-						setPickerError(null)
-					}}
-				>
-					Upload image
-				</Button>
-			</div>
+			<Tabs
+				value={logoMode}
+				onValueChange={(value) => {
+					setLogoMode(value as LogoMode)
+					setPickerError(null)
+				}}
+				className="space-y-4"
+			>
+				<TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl bg-muted/60 p-1.5">
+					<TabsTrigger value="avatar" className="h-12 rounded-xl">
+						<Sparkles className="size-4" />
+						Generate avatar
+					</TabsTrigger>
+					<TabsTrigger value="upload" className="h-12 rounded-xl">
+						<Upload className="size-4" />
+						Upload image
+					</TabsTrigger>
+				</TabsList>
 
-			{logoMode === "avatar" ? (
-				<div className="space-y-3">
-					<div className="grid grid-cols-3 gap-2">
+				<TabsContent value="avatar" className="mt-0 space-y-4">
+					<div className="grid grid-cols-2 gap-2 rounded-2xl bg-background/70 p-1.5 sm:w-fit">
 						<Button
 							type="button"
-							variant={avatarProvider === "boring" ? "default" : "secondary"}
-							className="h-10"
+							variant={avatarProvider === "boring" ? "default" : "ghost"}
+							className="h-10 rounded-xl px-5"
 							onClick={() => setAvatarProvider("boring")}
 						>
 							Boring
 						</Button>
 						<Button
 							type="button"
-							variant={avatarProvider === "avvvatars" ? "default" : "secondary"}
-							className="h-10 col-span-2"
+							variant={avatarProvider === "avvvatars" ? "default" : "ghost"}
+							className="h-10 rounded-xl px-5"
 							onClick={() => setAvatarProvider("avvvatars")}
 						>
 							Avvvatars
@@ -233,7 +229,7 @@ export const OrganizationLogoPicker = forwardRef<
 					<Button
 						type="button"
 						variant="outline"
-						className="h-10 w-full"
+						className="h-11 w-full rounded-xl bg-background/70"
 						onClick={() => {
 							setAvatarSeedVersion((current) => current + 1)
 							setSelectedAvatarSeed("")
@@ -243,7 +239,7 @@ export const OrganizationLogoPicker = forwardRef<
 						Shuffle options
 					</Button>
 
-					<div className="grid grid-cols-3 gap-3">
+					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
 						{avatarSeeds.map((seed) => {
 							const avatarKey = `${avatarProvider}-${seed}`
 							const isSelected = effectiveSelectedAvatarSeed === seed
@@ -259,14 +255,16 @@ export const OrganizationLogoPicker = forwardRef<
 										setSelectedAvatarSeed(seed)
 										setPickerError(null)
 									}}
-									className={`rounded-lg border p-2 transition ${
-										isSelected ? "border-primary bg-primary/5" : "border-border"
+									className={`rounded-2xl border bg-background/80 p-3 transition ${
+										isSelected
+											? "border-primary bg-primary/5 ring-2 ring-primary/15"
+											: "border-border/70 hover:border-primary/30"
 									}`}
 								>
 									<div className="flex justify-center">
 										{avatarProvider === "boring" ? (
 											<Avatar
-												size={72}
+												size={80}
 												name={seed}
 												variant={
 													boringAvatarVariants[
@@ -276,16 +274,16 @@ export const OrganizationLogoPicker = forwardRef<
 												}
 											/>
 										) : (
-											<Avvvatars value={seed} size={72} style="shape" />
+											<Avvvatars value={seed} size={80} style="shape" />
 										)}
 									</div>
 								</button>
 							)
 						})}
 					</div>
-				</div>
-			) : (
-				<div className="space-y-3">
+				</TabsContent>
+
+				<TabsContent value="upload" className="mt-0 space-y-4">
 					<FieldGroup>
 						<Field>
 							<FieldLabel htmlFor="organizationLogoUpload">
@@ -295,7 +293,7 @@ export const OrganizationLogoPicker = forwardRef<
 								id="organizationLogoUpload"
 								type="file"
 								accept="image/jpeg,image/png,image/webp,image/avif"
-								className="h-11"
+								className="h-11 rounded-xl bg-background/70"
 								onChange={(event) => {
 									const nextFile = event.target.files?.[0]
 									if (!nextFile) {
@@ -315,8 +313,8 @@ export const OrganizationLogoPicker = forwardRef<
 					</FieldGroup>
 
 					{selectedImageUrl ? (
-						<div className="space-y-3">
-							<div className="relative h-64 w-full overflow-hidden rounded-lg border bg-black/80">
+						<div className="space-y-4">
+							<div className="relative h-72 w-full overflow-hidden rounded-[1.5rem] border border-border/70 bg-black/80">
 								<Cropper
 									image={selectedImageUrl}
 									crop={crop}
@@ -333,49 +331,47 @@ export const OrganizationLogoPicker = forwardRef<
 								/>
 							</div>
 
-							<div className="space-y-2">
-								<FieldGroup>
-									<Field>
-										<FieldLabel htmlFor="logoZoom">Zoom</FieldLabel>
-										<Input
-											id="logoZoom"
-											type="range"
-											min={1}
-											max={3}
-											step={0.01}
-											className="h-10"
-											value={zoom}
-											onChange={(event) => {
-												setZoom(Number(event.target.value))
-											}}
-										/>
-									</Field>
-									<Field>
-										<FieldLabel htmlFor="logoRotation">Rotation</FieldLabel>
-										<Input
-											id="logoRotation"
-											type="range"
-											min={-180}
-											max={180}
-											step={1}
-											className="h-10"
-											value={rotation}
-											onChange={(event) => {
-												setRotation(Number(event.target.value))
-											}}
-										/>
-									</Field>
-								</FieldGroup>
-							</div>
+							<FieldGroup>
+								<Field>
+									<FieldLabel htmlFor="logoZoom">Zoom</FieldLabel>
+									<Input
+										id="logoZoom"
+										type="range"
+										min={1}
+										max={3}
+										step={0.01}
+										className="h-10"
+										value={zoom}
+										onChange={(event) => {
+											setZoom(Number(event.target.value))
+										}}
+									/>
+								</Field>
+								<Field>
+									<FieldLabel htmlFor="logoRotation">Rotation</FieldLabel>
+									<Input
+										id="logoRotation"
+										type="range"
+										min={-180}
+										max={180}
+										step={1}
+										className="h-10"
+										value={rotation}
+										onChange={(event) => {
+											setRotation(Number(event.target.value))
+										}}
+									/>
+								</Field>
+							</FieldGroup>
 						</div>
 					) : (
-						<div className="text-muted-foreground flex h-24 items-center justify-center rounded-lg border border-dashed text-sm">
+						<div className="text-muted-foreground flex h-28 items-center justify-center rounded-[1.5rem] border border-dashed border-border/80 bg-background/60 text-sm">
 							<ImagePlus className="mr-2 size-4" />
 							Select an image to edit
 						</div>
 					)}
-				</div>
-			)}
+				</TabsContent>
+			</Tabs>
 
 			{pickerError ? (
 				<p className="text-destructive text-sm">{pickerError}</p>

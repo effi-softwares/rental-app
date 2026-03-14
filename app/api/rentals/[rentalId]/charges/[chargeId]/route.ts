@@ -48,6 +48,7 @@ export async function PATCH(request: Request, { params }: RouteProps) {
 		description?: string
 		dueAt?: string | null
 		linkedDamageId?: string | null
+		metadata?: Record<string, unknown>
 		status?: "open" | "partially_paid" | "paid" | "cancelled"
 	} | null
 
@@ -100,6 +101,7 @@ export async function PATCH(request: Request, { params }: RouteProps) {
 				payload?.linkedDamageId !== undefined
 					? payload.linkedDamageId?.trim() || null
 					: existing.linkedDamageId,
+			metadata: payload?.metadata ?? existing.metadata,
 			updatedAt: new Date(),
 		})
 		.where(

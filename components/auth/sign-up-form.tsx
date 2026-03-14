@@ -1,22 +1,15 @@
 "use client"
 
 import { useQueryClient } from "@tanstack/react-query"
-import { Sparkles, UserPlus } from "lucide-react"
+import { UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { type FormEvent, useState } from "react"
 
+import { AuthInlineMessage, AuthPanel } from "@/components/auth/auth-panel"
 import { Button } from "@/components/ui/button"
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { routes } from "@/config/routes"
 import { mainQueryKeys } from "@/features/main/queries/keys"
 import { authClient } from "@/lib/auth-client"
@@ -72,91 +65,83 @@ export function SignUpForm() {
 	}
 
 	return (
-		<Card className="w-full max-w-lg border-border/70">
-			<CardHeader>
-				<div className="mb-1 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-primary/10 px-4 text-primary text-sm font-medium">
-					<Sparkles className="size-4" />
-					Get started
-				</div>
-				<CardTitle className="text-xl">Create owner account</CardTitle>
-				<CardDescription>
-					Set up your internal rental operations workspace.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<div className="rounded-lg border bg-muted/30 p-3">
-					<p className="text-muted-foreground text-xs">
-						This account will become the initial owner of your organization.
-					</p>
-				</div>
+		<AuthPanel className="space-y-6">
+			<form onSubmit={onSubmit}>
+				<FieldGroup className="gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
+						<Field>
+							<FieldLabel htmlFor="firstName">First name</FieldLabel>
+							<Input
+								id="firstName"
+								name="firstName"
+								required
+								className="h-12 rounded-xl"
+							/>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="lastName">Last name</FieldLabel>
+							<Input
+								id="lastName"
+								name="lastName"
+								required
+								className="h-12 rounded-xl"
+							/>
+						</Field>
+					</div>
+					<Field>
+						<FieldLabel htmlFor="email">Email</FieldLabel>
+						<Input
+							id="email"
+							name="email"
+							type="email"
+							autoComplete="email"
+							required
+							className="h-12 rounded-xl"
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="password">Password</FieldLabel>
+						<Input
+							id="password"
+							name="password"
+							type="password"
+							autoComplete="new-password"
+							minLength={8}
+							required
+							className="h-12 rounded-xl"
+						/>
+					</Field>
 
-				<form onSubmit={onSubmit}>
-					<FieldGroup>
-						<div className="grid gap-4 sm:grid-cols-2">
-							<Field>
-								<FieldLabel htmlFor="firstName">First name</FieldLabel>
-								<Input
-									id="firstName"
-									name="firstName"
-									required
-									className="h-11"
-								/>
-							</Field>
-							<Field>
-								<FieldLabel htmlFor="lastName">Last name</FieldLabel>
-								<Input
-									id="lastName"
-									name="lastName"
-									required
-									className="h-11"
-								/>
-							</Field>
-						</div>
-						<Field>
-							<FieldLabel htmlFor="email">Email</FieldLabel>
-							<Input
-								id="email"
-								name="email"
-								type="email"
-								autoComplete="email"
-								required
-								className="h-11"
-							/>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="password">Password</FieldLabel>
-							<Input
-								id="password"
-								name="password"
-								type="password"
-								autoComplete="new-password"
-								minLength={8}
-								required
-								className="h-11"
-							/>
-						</Field>
-						{error ? <p className="text-destructive text-sm">{error}</p> : null}
-						<Button
-							type="submit"
-							className="h-11 w-full"
-							disabled={isSubmitting}
+					<p className="text-xs leading-5 text-muted-foreground">
+						Use at least 8 characters. You can add passkeys and two-factor
+						verification after account creation.
+					</p>
+
+					{error ? (
+						<AuthInlineMessage variant="destructive">{error}</AuthInlineMessage>
+					) : null}
+
+					<Button
+						type="submit"
+						size="lg"
+						className="h-12 w-full rounded-xl"
+						disabled={isSubmitting}
+					>
+						<UserPlus className="size-4" />
+						{isSubmitting ? "Creating account..." : "Create owner account"}
+					</Button>
+
+					<p className="text-center text-sm text-muted-foreground">
+						Already have an account?{" "}
+						<Link
+							href={routes.auth.signIn}
+							className="font-medium text-foreground underline underline-offset-4"
 						>
-							<UserPlus className="size-4" />
-							{isSubmitting ? "Creating account..." : "Create account"}
-						</Button>
-						<Separator />
-						<p className="text-muted-foreground text-center text-sm">
-							Already have an account?{" "}
-							<Link
-								href={routes.auth.signIn}
-								className="text-primary font-medium underline-offset-4 hover:underline"
-							>
-								Sign in
-							</Link>
-						</p>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+							Sign in
+						</Link>
+					</p>
+				</FieldGroup>
+			</form>
+		</AuthPanel>
 	)
 }

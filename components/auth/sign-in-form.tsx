@@ -1,22 +1,20 @@
 "use client"
 
 import { useQueryClient } from "@tanstack/react-query"
-import { Fingerprint, KeyRound, ShieldCheck } from "lucide-react"
+import { Fingerprint, KeyRound } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { type FormEvent, useState } from "react"
 
+import { AuthInlineMessage, AuthPanel } from "@/components/auth/auth-panel"
 import { Button } from "@/components/ui/button"
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+	Field,
+	FieldGroup,
+	FieldLabel,
+	FieldSeparator,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { routes } from "@/config/routes"
 import { mainQueryKeys } from "@/features/main/queries/keys"
 import { authClient } from "@/lib/auth-client"
@@ -109,82 +107,71 @@ export function SignInForm() {
 	}
 
 	return (
-		<Card className="w-full max-w-md border-border/70">
-			<CardHeader>
-				<div className="mb-1 inline-flex h-11 w-fit items-center gap-2 rounded-full bg-primary/10 px-4 text-primary text-sm font-medium">
-					<ShieldCheck className="size-4" />
-					Secure access
-				</div>
-				<CardTitle className="text-xl">Sign in</CardTitle>
-				<CardDescription>
-					Access your rental operations dashboard with password or passkey.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<div className="rounded-lg border bg-muted/30 p-3">
-					<p className="text-muted-foreground text-xs">
-						Use the same account used for onboarding and organization access.
-					</p>
-				</div>
+		<AuthPanel className="space-y-6">
+			<form onSubmit={onSubmit}>
+				<FieldGroup className="gap-4">
+					<Field>
+						<FieldLabel htmlFor="email">Email</FieldLabel>
+						<Input
+							id="email"
+							name="email"
+							type="email"
+							autoComplete="email webauthn"
+							required
+							className="h-12 rounded-xl"
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="password">Password</FieldLabel>
+						<Input
+							id="password"
+							name="password"
+							type="password"
+							autoComplete="current-password webauthn"
+							required
+							className="h-12 rounded-xl"
+						/>
+					</Field>
 
-				<form onSubmit={onSubmit}>
-					<FieldGroup>
-						<Field>
-							<FieldLabel htmlFor="email">Email</FieldLabel>
-							<Input
-								id="email"
-								name="email"
-								type="email"
-								autoComplete="email webauthn"
-								required
-								className="h-11"
-							/>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="password">Password</FieldLabel>
-							<Input
-								id="password"
-								name="password"
-								type="password"
-								autoComplete="current-password webauthn"
-								required
-								className="h-11"
-							/>
-						</Field>
-						{error ? <p className="text-destructive text-sm">{error}</p> : null}
-						<div className="grid gap-2 sm:grid-cols-2">
-							<Button
-								type="submit"
-								className="h-11 w-full"
-								disabled={isSubmitting || isPasskeySubmitting}
-							>
-								<KeyRound className="size-4" />
-								{isSubmitting ? "Signing in..." : "Sign in"}
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								className="h-11 w-full"
-								onClick={() => void onPasskeySignIn()}
-								disabled={isSubmitting || isPasskeySubmitting}
-							>
-								<Fingerprint className="size-4" />
-								{isPasskeySubmitting ? "Signing in..." : "Use passkey"}
-							</Button>
-						</div>
-						<Separator />
-						<p className="text-muted-foreground text-center text-sm">
-							New owner?{" "}
-							<Link
-								href={routes.auth.signUp}
-								className="text-primary font-medium underline-offset-4 hover:underline"
-							>
-								Create account
-							</Link>
-						</p>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+					{error ? (
+						<AuthInlineMessage variant="destructive">{error}</AuthInlineMessage>
+					) : null}
+
+					<Button
+						type="submit"
+						size="lg"
+						className="h-12 w-full rounded-xl"
+						disabled={isSubmitting || isPasskeySubmitting}
+					>
+						<KeyRound className="size-4" />
+						{isSubmitting ? "Signing in..." : "Continue with password"}
+					</Button>
+
+					<FieldSeparator>or</FieldSeparator>
+
+					<Button
+						type="button"
+						variant="outline"
+						size="lg"
+						className="h-12 w-full rounded-xl"
+						onClick={() => void onPasskeySignIn()}
+						disabled={isSubmitting || isPasskeySubmitting}
+					>
+						<Fingerprint className="size-4" />
+						{isPasskeySubmitting ? "Signing in..." : "Continue with passkey"}
+					</Button>
+
+					<p className="text-center text-sm text-muted-foreground">
+						New owner?{" "}
+						<Link
+							href={routes.auth.signUp}
+							className="font-medium text-foreground underline underline-offset-4"
+						>
+							Create account
+						</Link>
+					</p>
+				</FieldGroup>
+			</form>
+		</AuthPanel>
 	)
 }

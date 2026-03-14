@@ -3,6 +3,8 @@
 import { AlertTriangle, LogIn, RotateCcw } from "lucide-react"
 import Link from "next/link"
 
+import { AuthPageShell } from "@/components/auth/auth-page-shell"
+import { AuthPanel } from "@/components/auth/auth-panel"
 import { Button } from "@/components/ui/button"
 import { routes } from "@/config/routes"
 
@@ -13,12 +15,14 @@ type AuthErrorProps = {
 
 export default function AuthError({ error, reset }: AuthErrorProps) {
 	return (
-		<div
-			role="alert"
-			aria-live="assertive"
-			className="relative flex min-h-screen items-center justify-center overflow-hidden bg-linear-to-b from-background via-background to-muted/30 px-4 py-10"
+		<AuthPageShell
+			eyebrow="Authentication error"
+			title="Secure sign-in hit a problem"
+			description="We ran into an unexpected issue while preparing authentication. Retry the flow or return to the sign-in screen."
+			visualVariant="status"
+			contentWidth="sm"
 		>
-			<div className="text-center">
+			<AuthPanel role="alert" aria-live="assertive" className="text-center">
 				<div className="bg-destructive/10 text-destructive mx-auto inline-flex items-center gap-2 rounded-full border border-destructive/15 px-4 py-2 text-sm font-medium">
 					<AlertTriangle className="size-4" />
 					Authentication error
@@ -41,16 +45,13 @@ export default function AuthError({ error, reset }: AuthErrorProps) {
 						0
 					</span>
 				</div>
-				<h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-					Secure sign-in hit a problem
-				</h1>
-				<p className="text-muted-foreground mx-auto mt-3 max-w-xl text-sm leading-6 sm:text-base">
-					We ran into an unexpected issue while preparing authentication. Retry
-					the flow or return to the sign-in screen.
-				</p>
-
 				<div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-					<Button type="button" size="lg" className="min-w-40" onClick={reset}>
+					<Button
+						type="button"
+						size="lg"
+						className="min-w-40 rounded-xl"
+						onClick={reset}
+					>
 						<RotateCcw />
 						Try again
 					</Button>
@@ -59,7 +60,7 @@ export default function AuthError({ error, reset }: AuthErrorProps) {
 						type="button"
 						variant="outline"
 						size="lg"
-						className="min-w-40"
+						className="min-w-40 rounded-xl"
 					>
 						<Link href={routes.auth.signIn}>
 							<LogIn />
@@ -71,7 +72,7 @@ export default function AuthError({ error, reset }: AuthErrorProps) {
 				<p className="text-muted-foreground/70 mt-8 text-xs tracking-[0.16em] uppercase">
 					{error.digest ? `Reference: ${error.digest}` : "Error Code: 500"}
 				</p>
-			</div>
-		</div>
+			</AuthPanel>
+		</AuthPageShell>
 	)
 }

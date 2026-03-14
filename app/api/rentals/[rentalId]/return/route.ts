@@ -4,9 +4,20 @@ import { NextResponse } from "next/server"
 import { jsonError } from "@/lib/api/errors"
 import { requireViewer } from "@/lib/api/guards"
 import { db } from "@/lib/db"
-import { rental, rentalDamage } from "@/lib/db/schema/rentals"
+import {
+	rental,
+	rentalCharge,
+	rentalDamage,
+	rentalDepositEvent,
+	rentalInspection,
+	rentalPaymentSchedule,
+} from "@/lib/db/schema/rentals"
 import { vehicle } from "@/lib/db/schema/vehicles"
-import { getScopedRentalForViewer, logRentalEvent } from "../../_lib"
+import {
+	getScopedRentalForViewer,
+	logRentalEvent,
+	numericToNumber,
+} from "../../_lib"
 
 type RouteProps = {
 	params: Promise<{
@@ -52,6 +63,118 @@ export async function POST(request: Request, { params }: RouteProps) {
 
 	if (Number.isNaN(resolvedEndAt.getTime())) {
 		return jsonError("Invalid return timestamp.", 400)
+	}
+
+	const [returnInspection] = await db
+		.select({ id: rentalInspection.id })
+		.from(rentalInspection)
+		.where(
+			and(
+				eq(rentalInspection.organizationId, viewer.activeOrganizationId),
+				eq(rentalInspection.rentalId, scopedRental.record.id),
+				eq(rentalInspection.stage, "return"),
+			),
+		)
+		.limit(1)
+
+	if (!returnInspection) {
+		return jsonError(
+			"Save the return inspection before completing the return.",
+			400,
+		)
+	}
+
+	const scheduleRows = await db
+		.select({
+			id: rentalPaymentSchedule.id,
+			amount: rentalPaymentSchedule.amount,
+			status: rentalPaymentSchedule.status,
+		})
+		.from(rentalPaymentSchedule)
+		.where(
+			and(
+				eq(rentalPaymentSchedule.organizationId, viewer.activeOrganizationId),
+				eq(rentalPaymentSchedule.rentalId, scopedRental.record.id),
+			),
+		)
+
+	const outstandingScheduledBalance = scheduleRows
+		.filter(
+			(row) =>
+				row.status === "pending" ||
+				row.status === "processing" ||
+				row.status === "failed",
+		)
+		.reduce((total, row) => total + numericToNumber(row.amount), 0)
+
+	if (outstandingScheduledBalance > 0) {
+		return jsonError(
+			"Collect all outstanding scheduled payments before completing the return.",
+			400,
+		)
+	}
+
+	const openCharges = await db
+		.select({
+			id: rentalCharge.id,
+			total: rentalCharge.total,
+			status: rentalCharge.status,
+		})
+		.from(rentalCharge)
+		.where(
+			and(
+				eq(rentalCharge.organizationId, viewer.activeOrganizationId),
+				eq(rentalCharge.rentalId, scopedRental.record.id),
+			),
+		)
+
+	const unresolvedCharges = openCharges.filter(
+		(row) => row.status === "open" || row.status === "partially_paid",
+	)
+
+	if (unresolvedCharges.length > 0) {
+		return jsonError(
+			"Resolve all known return charges before completing the return.",
+			400,
+		)
+	}
+
+	const depositEvents = await db
+		.select({
+			type: rentalDepositEvent.type,
+			amount: rentalDepositEvent.amount,
+		})
+		.from(rentalDepositEvent)
+		.where(
+			and(
+				eq(rentalDepositEvent.organizationId, viewer.activeOrganizationId),
+				eq(rentalDepositEvent.rentalId, scopedRental.record.id),
+			),
+		)
+
+	const depositAmount =
+		scopedRental.record.depositAmount === null
+			? 0
+			: numericToNumber(scopedRental.record.depositAmount)
+	const depositReleased = depositEvents
+		.filter((row) => row.type === "released" || row.type === "refunded")
+		.reduce((total, row) => total + numericToNumber(row.amount), 0)
+	const depositApplied = depositEvents
+		.filter((row) => row.type === "applied_to_charge")
+		.reduce((total, row) => total + numericToNumber(row.amount), 0)
+	const depositRetained = depositEvents
+		.filter((row) => row.type === "retained")
+		.reduce((total, row) => total + numericToNumber(row.amount), 0)
+	const depositHeld = Math.max(
+		depositAmount - depositReleased - depositApplied - depositRetained,
+		0,
+	)
+
+	if (scopedRental.record.depositRequired && depositHeld > 0) {
+		return jsonError(
+			"Resolve the held deposit before completing the return.",
+			400,
+		)
 	}
 
 	const unresolvedDamages = await db

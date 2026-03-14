@@ -1,8 +1,8 @@
 "use client"
 
-import { CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react"
+import { CheckCircle2, Plus, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { type ReactNode, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { MediaImage } from "@/components/media/media-image"
@@ -20,12 +20,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog"
-import {
 	Drawer,
 	DrawerContent,
 	DrawerDescription,
@@ -38,18 +32,18 @@ import { Input } from "@/components/ui/input"
 import {
 	InputGroup,
 	InputGroupAddon,
-	InputGroupButton,
 	InputGroupInput,
 	InputGroupText,
 } from "@/components/ui/input-group"
 import { PageSectionHeader } from "@/components/ui/page-section-header"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import {
-	AppWheelPicker,
-	type WheelPickerOption,
-} from "@/components/ui/wheel-picker"
 import { VehicleCatalogTable } from "@/components/vehicles/vehicle-catalog-table"
+import { VehicleCreateWizardDrawer } from "@/components/vehicles/vehicle-create-wizard-drawer"
+import {
+	ColorDrawerInput,
+	DrawerSelectInput,
+} from "@/components/vehicles/vehicle-form-picker-controls"
 import { VehicleImageGroupUpload } from "@/components/vehicles/vehicle-image-group-upload"
 import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
@@ -80,7 +74,6 @@ import {
 	vehicleSchema,
 	vehicleSpecsSchema,
 } from "@/features/vehicles"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { resolveErrorMessage } from "@/lib/errors"
 
 const vehicleStatuses: VehicleStatus[] = [
@@ -277,175 +270,6 @@ function mapVehicleToFormValues(details: VehicleDetails): VehicleFormValues {
 	}
 }
 
-type DrawerOption = {
-	value: string
-	label: string
-}
-
-type ResponsivePickerShellProps = {
-	open: boolean
-	onOpenChange: (open: boolean) => void
-	title: string
-	children: ReactNode
-}
-
-function ResponsivePickerShell({
-	open,
-	onOpenChange,
-	title,
-	children,
-}: ResponsivePickerShellProps) {
-	const isMobile = useIsMobile()
-
-	if (isMobile) {
-		return (
-			<Drawer open={open} onOpenChange={onOpenChange}>
-				<DrawerContent className="max-h-[88vh]">
-					<DrawerHeader>
-						<DrawerTitle>{title}</DrawerTitle>
-						<DrawerDescription>Choose one option.</DrawerDescription>
-					</DrawerHeader>
-					{children}
-				</DrawerContent>
-			</Drawer>
-		)
-	}
-
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-xl p-0">
-				<DialogHeader className="border-b px-5 py-4">
-					<DialogTitle className="text-3xl font-semibold tracking-tight">
-						{title}
-					</DialogTitle>
-				</DialogHeader>
-				{children}
-			</DialogContent>
-		</Dialog>
-	)
-}
-
-type DrawerSelectInputProps = {
-	value?: string
-	placeholder: string
-	drawerTitle: string
-	options: DrawerOption[]
-	onValueChange: (value: string) => void
-	disabled?: boolean
-}
-
-function DrawerSelectInput({
-	value,
-	placeholder,
-	drawerTitle,
-	options,
-	onValueChange,
-	disabled = false,
-}: DrawerSelectInputProps) {
-	const wheelOptions = options as WheelPickerOption<string>[]
-	const hasOptions = options.length > 0
-	const selectedOrFirstValue = useMemo(() => {
-		if (!hasOptions) {
-			return ""
-		}
-
-		if (value && options.some((option) => option.value === value)) {
-			return value
-		}
-
-		return options[0]?.value ?? ""
-	}, [value, options, hasOptions])
-	const [isOpen, setIsOpen] = useState(false)
-	const selectedOption = options.find((option) => option.value === value)
-	const [pendingValue, setPendingValue] = useState(selectedOrFirstValue)
-	const validPendingValue = useMemo(() => {
-		if (!hasOptions) {
-			return ""
-		}
-
-		if (options.some((option) => option.value === pendingValue)) {
-			return pendingValue
-		}
-
-		return options[0]?.value ?? ""
-	}, [pendingValue, options, hasOptions])
-
-	useEffect(() => {
-		if (!isOpen) {
-			setPendingValue(selectedOrFirstValue)
-		}
-	}, [isOpen, selectedOrFirstValue])
-
-	return (
-		<>
-			<InputGroup className="h-12" disabled={disabled || !hasOptions}>
-				<InputGroupInput
-					readOnly
-					value={selectedOption?.label ?? ""}
-					placeholder={placeholder}
-					onClick={() => {
-						if (!disabled && hasOptions) {
-							setIsOpen(true)
-						}
-					}}
-					className="h-full cursor-pointer"
-					disabled={disabled || !hasOptions}
-				/>
-				<InputGroupAddon align="inline-end">
-					<InputGroupButton
-						size="icon-sm"
-						onClick={() => setIsOpen(true)}
-						disabled={disabled || !hasOptions}
-					>
-						<ChevronDown />
-						<span className="sr-only">Open selector</span>
-					</InputGroupButton>
-				</InputGroupAddon>
-			</InputGroup>
-
-			<ResponsivePickerShell
-				open={isOpen}
-				onOpenChange={setIsOpen}
-				title={drawerTitle}
-			>
-				<div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
-					{hasOptions ? (
-						<AppWheelPicker
-							value={validPendingValue}
-							onValueChange={(nextValue) => setPendingValue(nextValue)}
-							options={wheelOptions}
-							visibleCount={18}
-							optionItemHeight={44}
-						/>
-					) : (
-						<p className="text-sm text-muted-foreground">
-							No options available.
-						</p>
-					)}
-					<Button
-						type="button"
-						className="h-12 w-full"
-						disabled={!hasOptions}
-						onClick={() => {
-							onValueChange(validPendingValue)
-							setIsOpen(false)
-						}}
-					>
-						Confirm
-					</Button>
-				</div>
-			</ResponsivePickerShell>
-		</>
-	)
-}
-
-type ColorDrawerInputProps = {
-	value: VehicleColor
-	colors: VehicleColor[]
-	placeholder: string
-	onValueChange: (value: VehicleColor) => void
-}
-
 type VehicleImageGroupKey = "frontImages" | "backImages" | "interiorImages"
 
 const imageGroupLabels: Record<
@@ -505,83 +329,6 @@ const drawerStepConfig = [
 		description: "Monthly primary rate plus optional pricing models.",
 	},
 ] as const
-
-function ColorDrawerInput({
-	value,
-	colors,
-	placeholder,
-	onValueChange,
-}: ColorDrawerInputProps) {
-	const [isOpen, setIsOpen] = useState(false)
-	const isLightColor = (hex: string) => {
-		const normalized = hex.replace("#", "")
-		const expanded =
-			normalized.length === 3
-				? normalized
-						.split("")
-						.map((char) => `${char}${char}`)
-						.join("")
-				: normalized
-		const red = Number.parseInt(expanded.slice(0, 2), 16)
-		const green = Number.parseInt(expanded.slice(2, 4), 16)
-		const blue = Number.parseInt(expanded.slice(4, 6), 16)
-		const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
-		return luminance > 0.7
-	}
-
-	return (
-		<>
-			<InputGroup className="h-12">
-				<InputGroupInput
-					readOnly
-					value={value.label}
-					placeholder={placeholder}
-					onClick={() => setIsOpen(true)}
-					className="h-full cursor-pointer"
-				/>
-				<InputGroupAddon align="inline-end">
-					<InputGroupButton size="icon-sm" onClick={() => setIsOpen(true)}>
-						<ChevronDown />
-						<span className="sr-only">Open color selector</span>
-					</InputGroupButton>
-				</InputGroupAddon>
-			</InputGroup>
-
-			<ResponsivePickerShell
-				open={isOpen}
-				onOpenChange={setIsOpen}
-				title="Select color"
-			>
-				<div className="px-4 pb-4 sm:px-5 sm:pb-5">
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-						{colors.map((color) => {
-							const selected = color.name === value.name
-							const lightColor = isLightColor(color.hex)
-							return (
-								<button
-									key={color.name}
-									type="button"
-									onClick={() => {
-										onValueChange(color)
-										setIsOpen(false)
-									}}
-									className="h-20 rounded-2xl border text-base font-medium"
-									style={{
-										backgroundColor: color.hex,
-										color: lightColor ? "#111827" : "#ffffff",
-										boxShadow: selected ? "inset 0 0 0 2px #111827" : undefined,
-									}}
-								>
-									{color.label}
-								</button>
-							)
-						})}
-					</div>
-				</div>
-			</ResponsivePickerShell>
-		</>
-	)
-}
 
 export function VehicleCatalogManagement() {
 	const router = useRouter()
@@ -816,6 +563,22 @@ export function VehicleCatalogManagement() {
 			operations: {
 				...previous.operations,
 				...nextValues,
+			},
+		}))
+	}
+
+	function onFeatureChange(
+		feature: keyof VehicleFormValues["specs"]["features"],
+		checked: boolean,
+	) {
+		setFormValues((previous) => ({
+			...previous,
+			specs: {
+				...previous.specs,
+				features: {
+					...previous.specs.features,
+					[feature]: checked,
+				},
 			},
 		}))
 	}
@@ -1237,6 +1000,16 @@ export function VehicleCatalogManagement() {
 		0,
 	)
 
+	function handleDrawerOpenChange(open: boolean) {
+		setIsDrawerOpen(open)
+		if (!open) {
+			setFormError(null)
+			setDrawerStep(0)
+			setUploadingGroup(null)
+			setUploadProgressByFile({})
+		}
+	}
+
 	return (
 		<section className="space-y-5">
 			<PageSectionHeader
@@ -1309,887 +1082,773 @@ export function VehicleCatalogManagement() {
 				}}
 			/>
 
-			<Drawer
-				open={isDrawerOpen}
-				onOpenChange={(open) => {
-					setIsDrawerOpen(open)
-					if (!open) {
-						setFormError(null)
-						setDrawerStep(0)
-						setUploadingGroup(null)
-						setUploadProgressByFile({})
-					}
-				}}
-			>
-				<DrawerContent className="h-dvh rounded-none!">
-					<DrawerHeader className="border-b px-4 pb-3">
-						<div className="drawer-container">
-							<DrawerTitle>
-								{drawerMode === "create" ? "Add vehicle" : "Edit vehicle"}
-							</DrawerTitle>
-							<DrawerDescription>
-								Step {drawerStep + 1} of {totalDrawerSteps} •{" "}
-								{activeDrawerStep.title}. {activeDrawerStep.description}
-							</DrawerDescription>
-						</div>
-					</DrawerHeader>
+			{drawerMode === "create" ? (
+				<VehicleCreateWizardDrawer
+					open={isDrawerOpen}
+					onOpenChange={handleDrawerOpenChange}
+					formError={formError}
+					drawerStep={drawerStep}
+					steps={drawerStepConfig}
+					formValues={formValues}
+					selectedColor={selectedColor}
+					colorPresets={colorPresets}
+					brandOptions={brandOptions}
+					modelOptions={modelOptions}
+					vehicleClassOptions={vehicleClassOptions}
+					bodyTypeOptions={bodyTypeOptions}
+					yearOptions={yearOptions}
+					seatOptions={seatOptions}
+					doorOptions={doorOptions}
+					baggageOptions={baggageOptions}
+					vehicleStatuses={vehicleStatuses}
+					transmissions={transmissions}
+					fuelTypes={fuelTypes}
+					drivetrains={drivetrains}
+					pricingModels={pricingModels}
+					rateEntries={rateEntries}
+					availablePricingModels={availablePricingModels}
+					activeImageGroup={activeImageGroup}
+					imageGroupLabels={imageGroupLabels}
+					imagePreviewGroups={imagePreviewGroups}
+					uploadedImageCount={uploadedImageCount}
+					uploadingGroup={uploadingGroup}
+					uploadProgressByFile={uploadProgressByFile}
+					createVehiclePending={createVehicleMutation.isPending}
+					uploadImagesPending={uploadImagesMutation.isPending}
+					onPreviousStep={onPreviousStep}
+					onNextStep={onNextStep}
+					onSubmitVehicle={() => {
+						void onSubmitVehicle()
+					}}
+					onBrandChange={onBrandChange}
+					updateIdentity={updateIdentity}
+					updateSpecs={updateSpecs}
+					updateOperations={updateOperations}
+					onFeatureChange={onFeatureChange}
+					onUploadImageGroup={(group, files) => {
+						void uploadImageGroup(group, files)
+					}}
+					onRemoveImage={removeImageFromGroup}
+					updateRateAtIndex={updateRateAtIndex}
+					onRateModelChange={onRateModelChange}
+					onAddRate={onAddRate}
+					onRemoveRate={onRemoveRate}
+				/>
+			) : (
+				<Drawer open={isDrawerOpen} onOpenChange={handleDrawerOpenChange}>
+					<DrawerContent className="h-dvh rounded-none!">
+						<DrawerHeader className="border-b px-4 pb-3">
+							<div className="drawer-container">
+								<DrawerTitle>Edit vehicle</DrawerTitle>
+								<DrawerDescription>
+									Step {drawerStep + 1} of {totalDrawerSteps} •{" "}
+									{activeDrawerStep.title}. {activeDrawerStep.description}
+								</DrawerDescription>
+							</div>
+						</DrawerHeader>
 
-					<div className="overflow-y-auto px-4 py-4">
-						<div className="drawer-container">
-							<div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-								<aside className="space-y-4 lg:pr-2">
-									<div className="space-y-1">
-										<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
-											Vehicle setup flow
-										</p>
-										<p className="text-sm font-medium">
-											{activeDrawerStep.title}
-										</p>
-										<p className="text-muted-foreground text-sm leading-relaxed">
-											{activeDrawerStep.description}
-										</p>
-									</div>
-
-									<div className="bg-muted h-1.5 overflow-hidden rounded-full">
-										<div
-											className="bg-primary h-full rounded-full transition-all"
-											style={{
-												width: `${Math.round(((drawerStep + 1) / totalDrawerSteps) * 100)}%`,
-											}}
-										/>
-									</div>
-
-									<ol className="space-y-1">
-										{drawerStepConfig.map((step, index) => {
-											const isCompleted = index < drawerStep
-											const isActive = index === drawerStep
-											const isLocked = index > drawerStep
-
-											return (
-												<li key={step.title}>
-													<button
-														type="button"
-														onClick={() => {
-															if (!isLocked) {
-																setFormError(null)
-																setDrawerStep(index)
-															}
-														}}
-														disabled={isLocked}
-														className={`flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
-															isActive
-																? "border-primary/40 bg-primary/5"
-																: "hover:bg-muted/60"
-														}`}
-													>
-														<span className="mt-0.5 inline-flex size-5 items-center justify-center rounded-full border text-xs font-medium">
-															{isCompleted ? (
-																<CheckCircle2 className="text-primary size-4" />
-															) : (
-																index + 1
-															)}
-														</span>
-														<span className="space-y-0.5">
-															<p className="text-sm font-medium">
-																{step.title}
-															</p>
-															<p className="text-muted-foreground text-xs">
-																{step.description}
-															</p>
-														</span>
-													</button>
-												</li>
-											)
-										})}
-									</ol>
-
-									{drawerStep >= 1 && drawerStep <= 3 ? (
-										<div className="border-t pt-3">
-											<p className="text-muted-foreground text-xs leading-relaxed">
-												Each uploaded image gets a generated blur preview before
-												you move to the next stage.
+						<div className="overflow-y-auto px-4 py-4">
+							<div className="drawer-container">
+								<div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+									<aside className="space-y-4 lg:pr-2">
+										<div className="space-y-1">
+											<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
+												Vehicle setup flow
+											</p>
+											<p className="text-sm font-medium">
+												{activeDrawerStep.title}
+											</p>
+											<p className="text-muted-foreground text-sm leading-relaxed">
+												{activeDrawerStep.description}
 											</p>
 										</div>
-									) : null}
-								</aside>
 
-								<div className="space-y-6 pb-2">
-									{drawerStep === 0 ? (
-										<FieldGroup className="gap-5">
-											<div className="grid gap-5 md:grid-cols-2">
-												<Field>
-													<FieldLabel>Brand</FieldLabel>
-													<DrawerSelectInput
-														value={formValues.identity.brandId}
-														placeholder="Select vehicle brand"
-														drawerTitle="Select brand"
-														options={brandOptions}
-														onValueChange={onBrandChange}
-													/>
-												</Field>
-
-												<Field>
-													<FieldLabel>Model</FieldLabel>
-													<DrawerSelectInput
-														value={formValues.identity.modelId}
-														placeholder={
-															formValues.identity.brandId
-																? "Select model"
-																: "Select brand first"
-														}
-														drawerTitle="Select model"
-														options={modelOptions}
-														disabled={
-															!formValues.identity.brandId ||
-															modelOptions.length === 0
-														}
-														onValueChange={(value) =>
-															updateIdentity({ modelId: value })
-														}
-													/>
-												</Field>
-
-												<Field>
-													<FieldLabel>Vehicle class</FieldLabel>
-													<DrawerSelectInput
-														value={formValues.identity.vehicleClassId ?? "none"}
-														placeholder="Select vehicle class"
-														drawerTitle="Select vehicle class"
-														options={vehicleClassOptions}
-														onValueChange={(value) =>
-															updateIdentity({
-																vehicleClassId:
-																	value === "none" ? undefined : value,
-															})
-														}
-													/>
-												</Field>
-
-												<Field>
-													<FieldLabel>Body type</FieldLabel>
-													<DrawerSelectInput
-														value={formValues.identity.bodyTypeId ?? "none"}
-														placeholder="Select body type"
-														drawerTitle="Select body type"
-														options={bodyTypeOptions}
-														onValueChange={(value) =>
-															updateIdentity({
-																bodyTypeId:
-																	value === "none" ? undefined : value,
-															})
-														}
-													/>
-												</Field>
-
-												<Field>
-													<FieldLabel>Year</FieldLabel>
-													<DrawerSelectInput
-														value={String(formValues.identity.year)}
-														placeholder="Select year"
-														drawerTitle="Select year"
-														options={yearOptions}
-														onValueChange={(value) =>
-															updateIdentity({ year: Number(value) })
-														}
-													/>
-												</Field>
-
-												<Field>
-													<FieldLabel>Vehicle color</FieldLabel>
-													<ColorDrawerInput
-														value={selectedColor}
-														colors={colorPresets}
-														placeholder="Select vehicle color"
-														onValueChange={(nextColor) =>
-															updateIdentity({ color: nextColor })
-														}
-													/>
-												</Field>
-											</div>
-
-											<div className="grid gap-5 md:grid-cols-2">
-												<Field>
-													<FieldLabel htmlFor="vehicle-plate">
-														License plate
-													</FieldLabel>
-													<Input
-														id="vehicle-plate"
-														value={formValues.identity.licensePlate}
-														onChange={(event) =>
-															updateIdentity({
-																licensePlate: event.target.value.toUpperCase(),
-															})
-														}
-														className="h-12"
-													/>
-												</Field>
-
-												<Field>
-													<FieldLabel htmlFor="vehicle-vin">VIN</FieldLabel>
-													<Input
-														id="vehicle-vin"
-														value={formValues.identity.vin}
-														onChange={(event) =>
-															updateIdentity({ vin: event.target.value })
-														}
-														className="h-12"
-													/>
-												</Field>
-											</div>
-
-											<Field
-												orientation="horizontal"
-												className="items-center justify-between rounded-md border px-3 py-2"
-											>
-												<FieldLabel htmlFor="is-brand-new">
-													Brand new vehicle
-												</FieldLabel>
-												<Switch
-													id="is-brand-new"
-													checked={formValues.identity.isBrandNew}
-													onCheckedChange={(checked) =>
-														updateIdentity({ isBrandNew: checked })
-													}
-												/>
-											</Field>
-										</FieldGroup>
-									) : null}
-
-									{drawerStep >= 1 && drawerStep <= 3 && activeImageGroup ? (
-										<FieldGroup className="gap-6">
-											<div className="space-y-1">
-												<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
-													Image capture
-												</p>
-												<p className="text-lg font-semibold">
-													{imageGroupLabels[activeImageGroup].title}
-												</p>
-												<p className="text-muted-foreground text-sm leading-relaxed">
-													{imageGroupLabels[activeImageGroup].description}
-												</p>
-											</div>
-
-											<VehicleImageGroupUpload
-												title={imageGroupLabels[activeImageGroup].title}
-												description={
-													imageGroupLabels[activeImageGroup].description
-												}
-												assets={formValues.images[activeImageGroup]}
-												isUploading={
-													uploadImagesMutation.isPending &&
-													uploadingGroup === activeImageGroup
-												}
-												uploadProgressByFile={
-													uploadingGroup === activeImageGroup
-														? uploadProgressByFile
-														: {}
-												}
-												onFilesSelected={(files) => {
-													void uploadImageGroup(activeImageGroup, files)
+										<div className="bg-muted h-1.5 overflow-hidden rounded-full">
+											<div
+												className="bg-primary h-full rounded-full transition-all"
+												style={{
+													width: `${Math.round(((drawerStep + 1) / totalDrawerSteps) * 100)}%`,
 												}}
-												onRemove={(assetId) =>
-													removeImageFromGroup(activeImageGroup, assetId)
-												}
 											/>
+										</div>
 
-											<div className="space-y-4 border-t pt-5">
-												<div className="flex items-center justify-between gap-2">
-													<p className="text-sm font-medium">
-														All image previews
-													</p>
-													<Badge variant="outline">
-														{uploadedImageCount} total
-													</Badge>
-												</div>
-
-												<div className="grid gap-4 md:grid-cols-3">
-													{imagePreviewGroups.map((group) => (
-														<div key={group.key} className="space-y-2">
-															<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
-																{group.title} ({group.assets.length})
-															</p>
-
-															{group.assets.length === 0 ? (
-																<p className="text-muted-foreground text-xs">
-																	No images yet.
-																</p>
-															) : (
-																<div className="grid grid-cols-2 gap-2">
-																	{group.assets.map((asset) => (
-																		<div
-																			key={`${group.key}-${asset.assetId}`}
-																			className="bg-muted/40 relative aspect-[4/3] overflow-hidden rounded-md border"
-																		>
-																			<MediaImage
-																				asset={{
-																					id: asset.assetId,
-																					deliveryUrl: asset.deliveryUrl,
-																					visibility: "private",
-																					blurDataUrl: asset.blurDataUrl,
-																					originalFileName: `${group.title}-${asset.assetId}`,
-																					contentType: "image/jpeg",
-																				}}
-																				alt={group.title}
-																				fill
-																				sizes="(min-width: 1024px) 18vw, 40vw"
-																				className="relative h-full w-full object-cover"
-																			/>
-																		</div>
-																	))}
-																</div>
-															)}
-														</div>
-													))}
-												</div>
-											</div>
-										</FieldGroup>
-									) : null}
-
-									{drawerStep === 4 ? (
-										<FieldGroup className="gap-5">
-											<Field>
-												<FieldLabel>Transmission</FieldLabel>
-												<ToggleGroup
-													type="single"
-													value={formValues.specs.transmission}
-													onValueChange={(value) => {
-														if (!value) {
-															return
-														}
-
-														updateSpecs({ transmission: value as Transmission })
-													}}
-													className="flex w-full flex-wrap gap-2"
-												>
-													{transmissions.map((transmission) => (
-														<ToggleGroupItem
-															key={transmission}
-															value={transmission}
-															className="h-11 px-3"
-														>
-															{transmission}
-														</ToggleGroupItem>
-													))}
-												</ToggleGroup>
-											</Field>
-
-											<Field>
-												<FieldLabel>Fuel type</FieldLabel>
-												<ToggleGroup
-													type="single"
-													value={formValues.specs.fuelType}
-													onValueChange={(value) => {
-														if (!value) {
-															return
-														}
-
-														updateSpecs({ fuelType: value as FuelType })
-													}}
-													className="flex w-full flex-wrap gap-2"
-												>
-													{fuelTypes.map((fuelType) => (
-														<ToggleGroupItem
-															key={fuelType}
-															value={fuelType}
-															className="h-11 px-3"
-														>
-															{fuelType}
-														</ToggleGroupItem>
-													))}
-												</ToggleGroup>
-											</Field>
-
-											<Field>
-												<FieldLabel>Drivetrain</FieldLabel>
-												<ToggleGroup
-													type="single"
-													value={formValues.specs.drivetrain}
-													onValueChange={(value) => {
-														if (!value) {
-															return
-														}
-
-														updateSpecs({ drivetrain: value as Drivetrain })
-													}}
-													className="flex w-full flex-wrap gap-2"
-												>
-													{drivetrains.map((drivetrain) => (
-														<ToggleGroupItem
-															key={drivetrain}
-															value={drivetrain}
-															className="h-11 px-3"
-														>
-															{drivetrain}
-														</ToggleGroupItem>
-													))}
-												</ToggleGroup>
-											</Field>
-
-											<div className="grid gap-5 md:grid-cols-3">
-												<Field>
-													<FieldLabel>Seats</FieldLabel>
-													<DrawerSelectInput
-														value={String(formValues.specs.seats)}
-														placeholder="Select seat count"
-														drawerTitle="Select seats"
-														options={seatOptions}
-														onValueChange={(value) =>
-															updateSpecs({ seats: Number(value) })
-														}
-													/>
-												</Field>
-												<Field>
-													<FieldLabel>Doors</FieldLabel>
-													<DrawerSelectInput
-														value={String(formValues.specs.doors)}
-														placeholder="Select door count"
-														drawerTitle="Select doors"
-														options={doorOptions}
-														onValueChange={(value) =>
-															updateSpecs({ doors: Number(value) })
-														}
-													/>
-												</Field>
-												<Field>
-													<FieldLabel>Baggage</FieldLabel>
-													<DrawerSelectInput
-														value={String(formValues.specs.baggageCapacity)}
-														placeholder="Select baggage count"
-														drawerTitle="Select baggage capacity"
-														options={baggageOptions}
-														onValueChange={(value) =>
-															updateSpecs({ baggageCapacity: Number(value) })
-														}
-													/>
-												</Field>
-											</div>
-
-											<div className="grid gap-3 md:grid-cols-2">
-												<Field
-													orientation="horizontal"
-													className="items-center justify-between rounded-md border px-3 py-2"
-												>
-													<FieldLabel htmlFor="feature-ac">
-														Air conditioning
-													</FieldLabel>
-													<Switch
-														id="feature-ac"
-														checked={formValues.specs.features.hasAC}
-														onCheckedChange={(checked) =>
-															setFormValues((previous) => ({
-																...previous,
-																specs: {
-																	...previous.specs,
-																	features: {
-																		...previous.specs.features,
-																		hasAC: checked,
-																	},
-																},
-															}))
-														}
-													/>
-												</Field>
-												<Field
-													orientation="horizontal"
-													className="items-center justify-between rounded-md border px-3 py-2"
-												>
-													<FieldLabel htmlFor="feature-nav">
-														Navigation
-													</FieldLabel>
-													<Switch
-														id="feature-nav"
-														checked={formValues.specs.features.hasNavigation}
-														onCheckedChange={(checked) =>
-															setFormValues((previous) => ({
-																...previous,
-																specs: {
-																	...previous.specs,
-																	features: {
-																		...previous.specs.features,
-																		hasNavigation: checked,
-																	},
-																},
-															}))
-														}
-													/>
-												</Field>
-												<Field
-													orientation="horizontal"
-													className="items-center justify-between rounded-md border px-3 py-2"
-												>
-													<FieldLabel htmlFor="feature-bluetooth">
-														Bluetooth
-													</FieldLabel>
-													<Switch
-														id="feature-bluetooth"
-														checked={formValues.specs.features.hasBluetooth}
-														onCheckedChange={(checked) =>
-															setFormValues((previous) => ({
-																...previous,
-																specs: {
-																	...previous.specs,
-																	features: {
-																		...previous.specs.features,
-																		hasBluetooth: checked,
-																	},
-																},
-															}))
-														}
-													/>
-												</Field>
-												<Field
-													orientation="horizontal"
-													className="items-center justify-between rounded-md border px-3 py-2"
-												>
-													<FieldLabel htmlFor="feature-pet">
-														Pet friendly
-													</FieldLabel>
-													<Switch
-														id="feature-pet"
-														checked={formValues.specs.features.isPetFriendly}
-														onCheckedChange={(checked) =>
-															setFormValues((previous) => ({
-																...previous,
-																specs: {
-																	...previous.specs,
-																	features: {
-																		...previous.specs.features,
-																		isPetFriendly: checked,
-																	},
-																},
-															}))
-														}
-													/>
-												</Field>
-											</div>
-										</FieldGroup>
-									) : null}
-
-									{drawerStep === 5 ? (
-										<FieldGroup className="gap-5">
-											<Field>
-												<FieldLabel>Status</FieldLabel>
-												<ToggleGroup
-													type="single"
-													value={formValues.operations.status}
-													onValueChange={(value) => {
-														if (!value) {
-															return
-														}
-
-														updateOperations({ status: value as VehicleStatus })
-													}}
-													className="flex w-full flex-wrap gap-2"
-												>
-													{vehicleStatuses.map((status) => (
-														<ToggleGroupItem
-															key={status}
-															value={status}
-															className="h-11 px-3"
-														>
-															{status}
-														</ToggleGroupItem>
-													))}
-												</ToggleGroup>
-											</Field>
-
-											<div className="grid gap-5 md:grid-cols-2">
-												<Field>
-													<FieldLabel htmlFor="registration-expiry">
-														Registration expiry
-													</FieldLabel>
-													<Input
-														id="registration-expiry"
-														type="date"
-														value={formValues.operations.registrationExpiryDate}
-														onChange={(event) =>
-															updateOperations({
-																registrationExpiryDate: event.target.value,
-															})
-														}
-														className="h-12"
-													/>
-												</Field>
-												<Field>
-													<FieldLabel htmlFor="insurance-expiry">
-														Insurance expiry
-													</FieldLabel>
-													<Input
-														id="insurance-expiry"
-														type="date"
-														value={formValues.operations.insuranceExpiryDate}
-														onChange={(event) =>
-															updateOperations({
-																insuranceExpiryDate: event.target.value,
-															})
-														}
-														className="h-12"
-													/>
-												</Field>
-											</div>
-
-											<Field>
-												<FieldLabel htmlFor="policy-number">
-													Insurance policy number
-												</FieldLabel>
-												<Input
-													id="policy-number"
-													value={formValues.operations.insurancePolicyNumber}
-													onChange={(event) =>
-														updateOperations({
-															insurancePolicyNumber: event.target.value,
-														})
-													}
-													className="h-12"
-												/>
-											</Field>
-										</FieldGroup>
-									) : null}
-
-									{drawerStep === 6 ? (
-										<FieldGroup className="gap-6">
-											<div className="space-y-1">
-												<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
-													Rate configuration
-												</p>
-												<p className="text-lg font-semibold">Pricing models</p>
-												<p className="text-muted-foreground text-sm leading-relaxed">
-													Monthly rental is the required primary model. Add
-													optional daily, weekly, and distance-based rates as
-													needed.
-												</p>
-											</div>
-
-											{rateEntries.map((rate, rateIndex) => {
-												const limitedMileagePolicy =
-													rate.mileagePolicy.mileageType === "Limited"
-														? rate.mileagePolicy
-														: {
-																mileageType: "Limited" as const,
-																limitPerDay: 200,
-																overageFeePerUnit: 0,
-																measureUnit: "km" as DistanceUnit,
-															}
-
-												const isMonthlyPrimary = rate.pricingModel === "Monthly"
-
-												function isUsedByAnotherRate(
-													pricingModel: PricingModel,
-												) {
-													return rateEntries.some(
-														(entry, entryIndex) =>
-															entryIndex !== rateIndex &&
-															entry.pricingModel === pricingModel,
-													)
-												}
+										<ol className="space-y-1">
+											{drawerStepConfig.map((step, index) => {
+												const isCompleted = index < drawerStep
+												const isActive = index === drawerStep
+												const isLocked = index > drawerStep
 
 												return (
-													<div
-														key={`${rate.pricingModel}-${rateIndex}`}
-														className="grid gap-5 border-y py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
-													>
-														<div className="space-y-3">
-															<div className="space-y-1">
-																<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
-																	{isMonthlyPrimary
-																		? "Primary model"
-																		: "Optional model"}
-																</p>
-																<p className="text-sm font-medium">
-																	{rate.pricingModel} rental
-																</p>
-																<p className="text-muted-foreground text-sm leading-relaxed">
-																	Set price, mileage policy, and security
-																	deposit.
-																</p>
-															</div>
-
-															<div className="flex flex-wrap gap-2">
-																{isMonthlyPrimary ? (
-																	<Badge variant="secondary">Required</Badge>
+													<li key={step.title}>
+														<button
+															type="button"
+															onClick={() => {
+																if (!isLocked) {
+																	setFormError(null)
+																	setDrawerStep(index)
+																}
+															}}
+															disabled={isLocked}
+															className={`flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
+																isActive
+																	? "border-primary/40 bg-primary/5"
+																	: "hover:bg-muted/60"
+															}`}
+														>
+															<span className="mt-0.5 inline-flex size-5 items-center justify-center rounded-full border text-xs font-medium">
+																{isCompleted ? (
+																	<CheckCircle2 className="text-primary size-4" />
 																) : (
-																	<Badge variant="outline">Optional</Badge>
+																	index + 1
 																)}
-																<Badge variant="outline">
-																	{rate.mileagePolicy.mileageType}
-																</Badge>
-															</div>
+															</span>
+															<span className="space-y-0.5">
+																<p className="text-sm font-medium">
+																	{step.title}
+																</p>
+																<p className="text-muted-foreground text-xs">
+																	{step.description}
+																</p>
+															</span>
+														</button>
+													</li>
+												)
+											})}
+										</ol>
 
-															<Button
-																type="button"
-																variant="outline"
-																onClick={() => onRemoveRate(rateIndex)}
-																disabled={isMonthlyPrimary}
-																className="h-9 w-full justify-start"
-															>
-																<Trash2 />
-																{isMonthlyPrimary
-																	? "Primary required"
-																	: "Remove rate"}
-															</Button>
-														</div>
+										{drawerStep >= 1 && drawerStep <= 3 ? (
+											<div className="border-t pt-3">
+												<p className="text-muted-foreground text-xs leading-relaxed">
+													Each uploaded image gets a generated blur preview
+													before you move to the next stage.
+												</p>
+											</div>
+										) : null}
+									</aside>
 
-														<div className="space-y-5">
-															<Field>
-																<FieldLabel>Pricing model</FieldLabel>
-																<ToggleGroup
-																	type="single"
-																	value={rate.pricingModel}
-																	onValueChange={(value) => {
-																		if (!value) {
-																			return
-																		}
+									<div className="space-y-6 pb-2">
+										{drawerStep === 0 ? (
+											<FieldGroup className="gap-5">
+												<div className="grid gap-5 md:grid-cols-2">
+													<Field>
+														<FieldLabel>Brand</FieldLabel>
+														<DrawerSelectInput
+															value={formValues.identity.brandId}
+															placeholder="Select vehicle brand"
+															drawerTitle="Select brand"
+															options={brandOptions}
+															onValueChange={onBrandChange}
+														/>
+													</Field>
 
-																		onRateModelChange(
-																			rateIndex,
-																			value as PricingModel,
-																		)
-																	}}
-																	className="flex w-full flex-wrap gap-2"
-																>
-																	{pricingModels.map((pricingModel) => (
-																		<ToggleGroupItem
-																			key={pricingModel}
-																			value={pricingModel}
-																			disabled={isUsedByAnotherRate(
-																				pricingModel,
-																			)}
-																			className="h-11 min-w-30 px-3"
-																		>
-																			{pricingModel}
-																		</ToggleGroupItem>
-																	))}
-																</ToggleGroup>
-															</Field>
+													<Field>
+														<FieldLabel>Model</FieldLabel>
+														<DrawerSelectInput
+															value={formValues.identity.modelId}
+															placeholder={
+																formValues.identity.brandId
+																	? "Select model"
+																	: "Select brand first"
+															}
+															drawerTitle="Select model"
+															options={modelOptions}
+															disabled={
+																!formValues.identity.brandId ||
+																modelOptions.length === 0
+															}
+															onValueChange={(value) =>
+																updateIdentity({ modelId: value })
+															}
+														/>
+													</Field>
 
-															<div className="grid gap-4 md:grid-cols-2">
-																<Field>
-																	<FieldLabel
-																		htmlFor={`rate-amount-${rateIndex}`}
-																	>
-																		Rate
-																	</FieldLabel>
-																	<InputGroup className="h-12">
-																		<InputGroupInput
-																			id={`rate-amount-${rateIndex}`}
-																			type="number"
-																			min={0}
-																			step="0.01"
-																			value={String(rate.rate)}
-																			onChange={(event) =>
-																				updateRateAtIndex(rateIndex, {
-																					rate: Number(event.target.value || 0),
-																				})
-																			}
-																			className="h-full"
-																		/>
-																		<InputGroupAddon align="inline-end">
-																			<InputGroupText>USD</InputGroupText>
-																		</InputGroupAddon>
-																	</InputGroup>
-																</Field>
+													<Field>
+														<FieldLabel>Vehicle class</FieldLabel>
+														<DrawerSelectInput
+															value={
+																formValues.identity.vehicleClassId ?? "none"
+															}
+															placeholder="Select vehicle class"
+															drawerTitle="Select vehicle class"
+															options={vehicleClassOptions}
+															onValueChange={(value) =>
+																updateIdentity({
+																	vehicleClassId:
+																		value === "none" ? undefined : value,
+																})
+															}
+														/>
+													</Field>
 
-																<Field
-																	orientation="horizontal"
-																	className="items-center justify-between rounded-md border px-3 py-2"
-																>
-																	<div className="space-y-0.5">
-																		<FieldLabel
-																			htmlFor={`limited-mileage-${rateIndex}`}
-																		>
-																			Limited mileage
-																		</FieldLabel>
-																		<p className="text-muted-foreground text-xs">
-																			Default is unlimited mileage.
-																		</p>
+													<Field>
+														<FieldLabel>Body type</FieldLabel>
+														<DrawerSelectInput
+															value={formValues.identity.bodyTypeId ?? "none"}
+															placeholder="Select body type"
+															drawerTitle="Select body type"
+															options={bodyTypeOptions}
+															onValueChange={(value) =>
+																updateIdentity({
+																	bodyTypeId:
+																		value === "none" ? undefined : value,
+																})
+															}
+														/>
+													</Field>
+
+													<Field>
+														<FieldLabel>Year</FieldLabel>
+														<DrawerSelectInput
+															value={String(formValues.identity.year)}
+															placeholder="Select year"
+															drawerTitle="Select year"
+															options={yearOptions}
+															onValueChange={(value) =>
+																updateIdentity({ year: Number(value) })
+															}
+														/>
+													</Field>
+
+													<Field>
+														<FieldLabel>Vehicle color</FieldLabel>
+														<ColorDrawerInput
+															value={selectedColor}
+															colors={colorPresets}
+															placeholder="Select vehicle color"
+															onValueChange={(nextColor) =>
+																updateIdentity({ color: nextColor })
+															}
+														/>
+													</Field>
+												</div>
+
+												<div className="grid gap-5 md:grid-cols-2">
+													<Field>
+														<FieldLabel htmlFor="vehicle-plate">
+															License plate
+														</FieldLabel>
+														<Input
+															id="vehicle-plate"
+															value={formValues.identity.licensePlate}
+															onChange={(event) =>
+																updateIdentity({
+																	licensePlate:
+																		event.target.value.toUpperCase(),
+																})
+															}
+															className="h-12"
+														/>
+													</Field>
+
+													<Field>
+														<FieldLabel htmlFor="vehicle-vin">VIN</FieldLabel>
+														<Input
+															id="vehicle-vin"
+															value={formValues.identity.vin}
+															onChange={(event) =>
+																updateIdentity({ vin: event.target.value })
+															}
+															className="h-12"
+														/>
+													</Field>
+												</div>
+
+												<Field
+													orientation="horizontal"
+													className="items-center justify-between rounded-md border px-3 py-2"
+												>
+													<FieldLabel htmlFor="is-brand-new">
+														Brand new vehicle
+													</FieldLabel>
+													<Switch
+														id="is-brand-new"
+														checked={formValues.identity.isBrandNew}
+														onCheckedChange={(checked) =>
+															updateIdentity({ isBrandNew: checked })
+														}
+													/>
+												</Field>
+											</FieldGroup>
+										) : null}
+
+										{drawerStep >= 1 && drawerStep <= 3 && activeImageGroup ? (
+											<FieldGroup className="gap-6">
+												<div className="space-y-1">
+													<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
+														Image capture
+													</p>
+													<p className="text-lg font-semibold">
+														{imageGroupLabels[activeImageGroup].title}
+													</p>
+													<p className="text-muted-foreground text-sm leading-relaxed">
+														{imageGroupLabels[activeImageGroup].description}
+													</p>
+												</div>
+
+												<VehicleImageGroupUpload
+													title={imageGroupLabels[activeImageGroup].title}
+													description={
+														imageGroupLabels[activeImageGroup].description
+													}
+													assets={formValues.images[activeImageGroup]}
+													isUploading={
+														uploadImagesMutation.isPending &&
+														uploadingGroup === activeImageGroup
+													}
+													uploadProgressByFile={
+														uploadingGroup === activeImageGroup
+															? uploadProgressByFile
+															: {}
+													}
+													onFilesSelected={(files) => {
+														void uploadImageGroup(activeImageGroup, files)
+													}}
+													onRemove={(assetId) =>
+														removeImageFromGroup(activeImageGroup, assetId)
+													}
+												/>
+
+												<div className="space-y-4 border-t pt-5">
+													<div className="flex items-center justify-between gap-2">
+														<p className="text-sm font-medium">
+															All image previews
+														</p>
+														<Badge variant="outline">
+															{uploadedImageCount} total
+														</Badge>
+													</div>
+
+													<div className="grid gap-4 md:grid-cols-3">
+														{imagePreviewGroups.map((group) => (
+															<div key={group.key} className="space-y-2">
+																<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
+																	{group.title} ({group.assets.length})
+																</p>
+
+																{group.assets.length === 0 ? (
+																	<p className="text-muted-foreground text-xs">
+																		No images yet.
+																	</p>
+																) : (
+																	<div className="grid grid-cols-2 gap-2">
+																		{group.assets.map((asset) => (
+																			<div
+																				key={`${group.key}-${asset.assetId}`}
+																				className="bg-muted/40 relative aspect-[4/3] overflow-hidden rounded-md border"
+																			>
+																				<MediaImage
+																					asset={{
+																						id: asset.assetId,
+																						deliveryUrl: asset.deliveryUrl,
+																						visibility: "private",
+																						blurDataUrl: asset.blurDataUrl,
+																						originalFileName: `${group.title}-${asset.assetId}`,
+																						contentType: "image/jpeg",
+																					}}
+																					alt={group.title}
+																					fill
+																					sizes="(min-width: 1024px) 18vw, 40vw"
+																					className="relative h-full w-full object-cover"
+																				/>
+																			</div>
+																		))}
 																	</div>
-																	<Switch
-																		id={`limited-mileage-${rateIndex}`}
-																		checked={
-																			rate.mileagePolicy.mileageType ===
-																			"Limited"
-																		}
-																		onCheckedChange={(checked) =>
-																			updateRateAtIndex(rateIndex, {
-																				mileagePolicy: checked
-																					? limitedMileagePolicy
-																					: { mileageType: "Unlimited" },
-																			})
-																		}
-																	/>
-																</Field>
+																)}
+															</div>
+														))}
+													</div>
+												</div>
+											</FieldGroup>
+										) : null}
+
+										{drawerStep === 4 ? (
+											<FieldGroup className="gap-5">
+												<Field>
+													<FieldLabel>Transmission</FieldLabel>
+													<ToggleGroup
+														type="single"
+														value={formValues.specs.transmission}
+														onValueChange={(value) => {
+															if (!value) {
+																return
+															}
+
+															updateSpecs({
+																transmission: value as Transmission,
+															})
+														}}
+														className="flex w-full flex-wrap gap-2"
+													>
+														{transmissions.map((transmission) => (
+															<ToggleGroupItem
+																key={transmission}
+																value={transmission}
+																className="h-11 px-3"
+															>
+																{transmission}
+															</ToggleGroupItem>
+														))}
+													</ToggleGroup>
+												</Field>
+
+												<Field>
+													<FieldLabel>Fuel type</FieldLabel>
+													<ToggleGroup
+														type="single"
+														value={formValues.specs.fuelType}
+														onValueChange={(value) => {
+															if (!value) {
+																return
+															}
+
+															updateSpecs({ fuelType: value as FuelType })
+														}}
+														className="flex w-full flex-wrap gap-2"
+													>
+														{fuelTypes.map((fuelType) => (
+															<ToggleGroupItem
+																key={fuelType}
+																value={fuelType}
+																className="h-11 px-3"
+															>
+																{fuelType}
+															</ToggleGroupItem>
+														))}
+													</ToggleGroup>
+												</Field>
+
+												<Field>
+													<FieldLabel>Drivetrain</FieldLabel>
+													<ToggleGroup
+														type="single"
+														value={formValues.specs.drivetrain}
+														onValueChange={(value) => {
+															if (!value) {
+																return
+															}
+
+															updateSpecs({ drivetrain: value as Drivetrain })
+														}}
+														className="flex w-full flex-wrap gap-2"
+													>
+														{drivetrains.map((drivetrain) => (
+															<ToggleGroupItem
+																key={drivetrain}
+																value={drivetrain}
+																className="h-11 px-3"
+															>
+																{drivetrain}
+															</ToggleGroupItem>
+														))}
+													</ToggleGroup>
+												</Field>
+
+												<div className="grid gap-5 md:grid-cols-3">
+													<Field>
+														<FieldLabel>Seats</FieldLabel>
+														<DrawerSelectInput
+															value={String(formValues.specs.seats)}
+															placeholder="Select seat count"
+															drawerTitle="Select seats"
+															options={seatOptions}
+															onValueChange={(value) =>
+																updateSpecs({ seats: Number(value) })
+															}
+														/>
+													</Field>
+													<Field>
+														<FieldLabel>Doors</FieldLabel>
+														<DrawerSelectInput
+															value={String(formValues.specs.doors)}
+															placeholder="Select door count"
+															drawerTitle="Select doors"
+															options={doorOptions}
+															onValueChange={(value) =>
+																updateSpecs({ doors: Number(value) })
+															}
+														/>
+													</Field>
+													<Field>
+														<FieldLabel>Baggage</FieldLabel>
+														<DrawerSelectInput
+															value={String(formValues.specs.baggageCapacity)}
+															placeholder="Select baggage count"
+															drawerTitle="Select baggage capacity"
+															options={baggageOptions}
+															onValueChange={(value) =>
+																updateSpecs({ baggageCapacity: Number(value) })
+															}
+														/>
+													</Field>
+												</div>
+
+												<div className="grid gap-3 md:grid-cols-2">
+													{[
+														{
+															id: "feature-ac",
+															label: "Air conditioning",
+															key: "hasAC" as const,
+														},
+														{
+															id: "feature-nav",
+															label: "Navigation",
+															key: "hasNavigation" as const,
+														},
+														{
+															id: "feature-bluetooth",
+															label: "Bluetooth",
+															key: "hasBluetooth" as const,
+														},
+														{
+															id: "feature-pet",
+															label: "Pet friendly",
+															key: "isPetFriendly" as const,
+														},
+													].map((feature) => (
+														<Field
+															key={feature.id}
+															orientation="horizontal"
+															className="items-center justify-between rounded-md border px-3 py-2"
+														>
+															<FieldLabel htmlFor={feature.id}>
+																{feature.label}
+															</FieldLabel>
+															<Switch
+																id={feature.id}
+																checked={formValues.specs.features[feature.key]}
+																onCheckedChange={(checked) =>
+																	onFeatureChange(feature.key, checked)
+																}
+															/>
+														</Field>
+													))}
+												</div>
+											</FieldGroup>
+										) : null}
+
+										{drawerStep === 5 ? (
+											<FieldGroup className="gap-5">
+												<Field>
+													<FieldLabel>Status</FieldLabel>
+													<ToggleGroup
+														type="single"
+														value={formValues.operations.status}
+														onValueChange={(value) => {
+															if (!value) {
+																return
+															}
+
+															updateOperations({
+																status: value as VehicleStatus,
+															})
+														}}
+														className="flex w-full flex-wrap gap-2"
+													>
+														{vehicleStatuses.map((status) => (
+															<ToggleGroupItem
+																key={status}
+																value={status}
+																className="h-11 px-3"
+															>
+																{status}
+															</ToggleGroupItem>
+														))}
+													</ToggleGroup>
+												</Field>
+
+												<div className="grid gap-5 md:grid-cols-2">
+													<Field>
+														<FieldLabel htmlFor="registration-expiry">
+															Registration expiry
+														</FieldLabel>
+														<Input
+															id="registration-expiry"
+															type="date"
+															value={
+																formValues.operations.registrationExpiryDate
+															}
+															onChange={(event) =>
+																updateOperations({
+																	registrationExpiryDate: event.target.value,
+																})
+															}
+															className="h-12"
+														/>
+													</Field>
+													<Field>
+														<FieldLabel htmlFor="insurance-expiry">
+															Insurance expiry
+														</FieldLabel>
+														<Input
+															id="insurance-expiry"
+															type="date"
+															value={formValues.operations.insuranceExpiryDate}
+															onChange={(event) =>
+																updateOperations({
+																	insuranceExpiryDate: event.target.value,
+																})
+															}
+															className="h-12"
+														/>
+													</Field>
+												</div>
+
+												<Field>
+													<FieldLabel htmlFor="policy-number">
+														Insurance policy number
+													</FieldLabel>
+													<Input
+														id="policy-number"
+														value={formValues.operations.insurancePolicyNumber}
+														onChange={(event) =>
+															updateOperations({
+																insurancePolicyNumber: event.target.value,
+															})
+														}
+														className="h-12"
+													/>
+												</Field>
+											</FieldGroup>
+										) : null}
+
+										{drawerStep === 6 ? (
+											<FieldGroup className="gap-6">
+												<div className="space-y-1">
+													<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
+														Rate configuration
+													</p>
+													<p className="text-lg font-semibold">
+														Pricing models
+													</p>
+													<p className="text-muted-foreground text-sm leading-relaxed">
+														Monthly rental is the required primary model. Add
+														optional daily, weekly, and distance-based rates as
+														needed.
+													</p>
+												</div>
+
+												{rateEntries.map((rate, rateIndex) => {
+													const limitedMileagePolicy =
+														rate.mileagePolicy.mileageType === "Limited"
+															? rate.mileagePolicy
+															: {
+																	mileageType: "Limited" as const,
+																	limitPerDay: 200,
+																	overageFeePerUnit: 0,
+																	measureUnit: "km" as DistanceUnit,
+																}
+
+													const isMonthlyPrimary =
+														rate.pricingModel === "Monthly"
+
+													function isUsedByAnotherRate(
+														pricingModel: PricingModel,
+													) {
+														return rateEntries.some(
+															(entry, entryIndex) =>
+																entryIndex !== rateIndex &&
+																entry.pricingModel === pricingModel,
+														)
+													}
+
+													return (
+														<div
+															key={`${rate.pricingModel}-${rateIndex}`}
+															className="grid gap-5 border-y py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+														>
+															<div className="space-y-3">
+																<div className="space-y-1">
+																	<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
+																		{isMonthlyPrimary
+																			? "Primary model"
+																			: "Optional model"}
+																	</p>
+																	<p className="text-sm font-medium">
+																		{rate.pricingModel} rental
+																	</p>
+																	<p className="text-muted-foreground text-sm leading-relaxed">
+																		Set price, mileage policy, and security
+																		deposit.
+																	</p>
+																</div>
+
+																<div className="flex flex-wrap gap-2">
+																	{isMonthlyPrimary ? (
+																		<Badge variant="secondary">Required</Badge>
+																	) : (
+																		<Badge variant="outline">Optional</Badge>
+																	)}
+																	<Badge variant="outline">
+																		{rate.mileagePolicy.mileageType}
+																	</Badge>
+																</div>
+
+																<Button
+																	type="button"
+																	variant="outline"
+																	onClick={() => onRemoveRate(rateIndex)}
+																	disabled={isMonthlyPrimary}
+																	className="h-9 w-full justify-start"
+																>
+																	<Trash2 />
+																	{isMonthlyPrimary
+																		? "Primary required"
+																		: "Remove rate"}
+																</Button>
 															</div>
 
-															{rate.mileagePolicy.mileageType === "Limited" ? (
-																<div className="grid gap-4 rounded-md border p-3 md:grid-cols-3">
-																	<Field>
-																		<FieldLabel
-																			htmlFor={`limit-per-day-${rateIndex}`}
-																		>
-																			Daily limit
-																		</FieldLabel>
-																		<InputGroup className="h-12">
-																			<InputGroupInput
-																				id={`limit-per-day-${rateIndex}`}
-																				type="number"
-																				min={1}
-																				value={String(
-																					limitedMileagePolicy.limitPerDay,
-																				)}
-																				onChange={(event) =>
-																					updateRateAtIndex(rateIndex, {
-																						mileagePolicy: {
-																							mileageType: "Limited",
-																							limitPerDay: Number(
-																								event.target.value || 1,
-																							),
-																							overageFeePerUnit:
-																								limitedMileagePolicy.overageFeePerUnit,
-																							measureUnit:
-																								limitedMileagePolicy.measureUnit,
-																						},
-																					})
-																				}
-																				className="h-full"
-																			/>
-																			<InputGroupAddon align="inline-end">
-																				<InputGroupText>
-																					{limitedMileagePolicy.measureUnit}
-																				</InputGroupText>
-																			</InputGroupAddon>
-																		</InputGroup>
-																		<p className="text-muted-foreground text-xs">
-																			Maximum distance allowed per day.
-																		</p>
-																	</Field>
+															<div className="space-y-5">
+																<Field>
+																	<FieldLabel>Pricing model</FieldLabel>
+																	<ToggleGroup
+																		type="single"
+																		value={rate.pricingModel}
+																		onValueChange={(value) => {
+																			if (!value) {
+																				return
+																			}
 
+																			onRateModelChange(
+																				rateIndex,
+																				value as PricingModel,
+																			)
+																		}}
+																		className="flex w-full flex-wrap gap-2"
+																	>
+																		{pricingModels.map((pricingModel) => (
+																			<ToggleGroupItem
+																				key={pricingModel}
+																				value={pricingModel}
+																				disabled={isUsedByAnotherRate(
+																					pricingModel,
+																				)}
+																				className="h-11 min-w-30 px-3"
+																			>
+																				{pricingModel}
+																			</ToggleGroupItem>
+																		))}
+																	</ToggleGroup>
+																</Field>
+
+																<div className="grid gap-4 md:grid-cols-2">
 																	<Field>
 																		<FieldLabel
-																			htmlFor={`overage-fee-${rateIndex}`}
+																			htmlFor={`rate-amount-${rateIndex}`}
 																		>
-																			Overage fee / unit
+																			Rate
 																		</FieldLabel>
 																		<InputGroup className="h-12">
 																			<InputGroupInput
-																				id={`overage-fee-${rateIndex}`}
+																				id={`rate-amount-${rateIndex}`}
 																				type="number"
 																				min={0}
 																				step="0.01"
-																				value={String(
-																					limitedMileagePolicy.overageFeePerUnit,
-																				)}
+																				value={String(rate.rate)}
 																				onChange={(event) =>
 																					updateRateAtIndex(rateIndex, {
-																						mileagePolicy: {
-																							mileageType: "Limited",
-																							limitPerDay:
-																								limitedMileagePolicy.limitPerDay,
-																							overageFeePerUnit: Number(
-																								event.target.value || 0,
-																							),
-																							measureUnit:
-																								limitedMileagePolicy.measureUnit,
-																						},
+																						rate: Number(
+																							event.target.value || 0,
+																						),
 																					})
 																				}
 																				className="h-full"
@@ -2198,202 +1857,315 @@ export function VehicleCatalogManagement() {
 																				<InputGroupText>USD</InputGroupText>
 																			</InputGroupAddon>
 																		</InputGroup>
-																		<p className="text-muted-foreground text-xs">
-																			Fee charged for each extra kilometer/mile.
-																		</p>
 																	</Field>
 
-																	<Field>
-																		<FieldLabel>Unit</FieldLabel>
-																		<ToggleGroup
-																			type="single"
-																			value={limitedMileagePolicy.measureUnit}
-																			onValueChange={(value) => {
-																				if (!value) {
-																					return
-																				}
-
-																				updateRateAtIndex(rateIndex, {
-																					mileagePolicy: {
-																						mileageType: "Limited",
-																						limitPerDay:
-																							limitedMileagePolicy.limitPerDay,
-																						overageFeePerUnit:
-																							limitedMileagePolicy.overageFeePerUnit,
-																						measureUnit: value as DistanceUnit,
-																					},
-																				})
-																			}}
-																			className="flex w-full gap-2"
-																		>
-																			<ToggleGroupItem
-																				value="km"
-																				className="h-11 flex-1"
-																			>
-																				km
-																			</ToggleGroupItem>
-																			<ToggleGroupItem
-																				value="miles"
-																				className="h-11 flex-1"
-																			>
-																				miles
-																			</ToggleGroupItem>
-																		</ToggleGroup>
-																	</Field>
-																</div>
-															) : null}
-
-															<Field
-																orientation="horizontal"
-																className="items-center justify-between rounded-md border px-3 py-2"
-															>
-																<div className="space-y-0.5">
-																	<FieldLabel
-																		htmlFor={`requires-deposit-${rateIndex}`}
+																	<Field
+																		orientation="horizontal"
+																		className="items-center justify-between rounded-md border px-3 py-2"
 																	>
-																		Security deposit
-																	</FieldLabel>
-																	<p className="text-muted-foreground text-xs">
-																		Require an upfront deposit for this model.
-																	</p>
-																</div>
-																<Switch
-																	id={`requires-deposit-${rateIndex}`}
-																	checked={rate.requiresDeposit}
-																	onCheckedChange={(checked) =>
-																		updateRateAtIndex(rateIndex, {
-																			requiresDeposit: checked,
-																			depositAmount: checked
-																				? (rate.depositAmount ?? 0)
-																				: undefined,
-																		})
-																	}
-																/>
-															</Field>
-
-															{rate.requiresDeposit ? (
-																<Field>
-																	<FieldLabel
-																		htmlFor={`deposit-amount-${rateIndex}`}
-																	>
-																		Deposit amount
-																	</FieldLabel>
-																	<InputGroup className="h-12">
-																		<InputGroupInput
-																			id={`deposit-amount-${rateIndex}`}
-																			type="number"
-																			min={0}
-																			step="0.01"
-																			value={String(rate.depositAmount ?? 0)}
-																			onChange={(event) =>
+																		<div className="space-y-0.5">
+																			<FieldLabel
+																				htmlFor={`limited-mileage-${rateIndex}`}
+																			>
+																				Limited mileage
+																			</FieldLabel>
+																			<p className="text-muted-foreground text-xs">
+																				Default is unlimited mileage.
+																			</p>
+																		</div>
+																		<Switch
+																			id={`limited-mileage-${rateIndex}`}
+																			checked={
+																				rate.mileagePolicy.mileageType ===
+																				"Limited"
+																			}
+																			onCheckedChange={(checked) =>
 																				updateRateAtIndex(rateIndex, {
-																					depositAmount: Number(
-																						event.target.value || 0,
-																					),
+																					mileagePolicy: checked
+																						? limitedMileagePolicy
+																						: { mileageType: "Unlimited" },
 																				})
 																			}
-																			className="h-full"
 																		/>
-																		<InputGroupAddon align="inline-end">
-																			<InputGroupText>USD</InputGroupText>
-																		</InputGroupAddon>
-																	</InputGroup>
-																</Field>
-															) : null}
-														</div>
-													</div>
-												)
-											})}
+																	</Field>
+																</div>
 
-											<div className="space-y-2 border-t pt-5 text-center">
-												<p className="text-sm font-medium">Add rates</p>
-												<p className="text-muted-foreground text-sm">
-													Configure pricing, mileage policy, and security
-													deposit for this vehicle.
-												</p>
-												<Button
-													type="button"
-													variant="outline"
-													className="mx-auto h-11"
-													onClick={onAddRate}
-													disabled={availablePricingModels.length === 0}
-												>
-													<Plus />
-													Add rate
-												</Button>
-												{availablePricingModels.length === 0 ? (
-													<p className="text-muted-foreground text-xs">
-														All pricing models are already configured.
+																{rate.mileagePolicy.mileageType ===
+																"Limited" ? (
+																	<div className="grid gap-4 rounded-md border p-3 md:grid-cols-3">
+																		<Field>
+																			<FieldLabel
+																				htmlFor={`limit-per-day-${rateIndex}`}
+																			>
+																				Daily limit
+																			</FieldLabel>
+																			<InputGroup className="h-12">
+																				<InputGroupInput
+																					id={`limit-per-day-${rateIndex}`}
+																					type="number"
+																					min={1}
+																					value={String(
+																						limitedMileagePolicy.limitPerDay,
+																					)}
+																					onChange={(event) =>
+																						updateRateAtIndex(rateIndex, {
+																							mileagePolicy: {
+																								mileageType: "Limited",
+																								limitPerDay: Number(
+																									event.target.value || 1,
+																								),
+																								overageFeePerUnit:
+																									limitedMileagePolicy.overageFeePerUnit,
+																								measureUnit:
+																									limitedMileagePolicy.measureUnit,
+																							},
+																						})
+																					}
+																					className="h-full"
+																				/>
+																				<InputGroupAddon align="inline-end">
+																					<InputGroupText>
+																						{limitedMileagePolicy.measureUnit}
+																					</InputGroupText>
+																				</InputGroupAddon>
+																			</InputGroup>
+																			<p className="text-muted-foreground text-xs">
+																				Maximum distance allowed per day.
+																			</p>
+																		</Field>
+
+																		<Field>
+																			<FieldLabel
+																				htmlFor={`overage-fee-${rateIndex}`}
+																			>
+																				Overage fee / unit
+																			</FieldLabel>
+																			<InputGroup className="h-12">
+																				<InputGroupInput
+																					id={`overage-fee-${rateIndex}`}
+																					type="number"
+																					min={0}
+																					step="0.01"
+																					value={String(
+																						limitedMileagePolicy.overageFeePerUnit,
+																					)}
+																					onChange={(event) =>
+																						updateRateAtIndex(rateIndex, {
+																							mileagePolicy: {
+																								mileageType: "Limited",
+																								limitPerDay:
+																									limitedMileagePolicy.limitPerDay,
+																								overageFeePerUnit: Number(
+																									event.target.value || 0,
+																								),
+																								measureUnit:
+																									limitedMileagePolicy.measureUnit,
+																							},
+																						})
+																					}
+																					className="h-full"
+																				/>
+																				<InputGroupAddon align="inline-end">
+																					<InputGroupText>USD</InputGroupText>
+																				</InputGroupAddon>
+																			</InputGroup>
+																			<p className="text-muted-foreground text-xs">
+																				Fee charged for each extra
+																				kilometer/mile.
+																			</p>
+																		</Field>
+
+																		<Field>
+																			<FieldLabel>Unit</FieldLabel>
+																			<ToggleGroup
+																				type="single"
+																				value={limitedMileagePolicy.measureUnit}
+																				onValueChange={(value) => {
+																					if (!value) {
+																						return
+																					}
+
+																					updateRateAtIndex(rateIndex, {
+																						mileagePolicy: {
+																							mileageType: "Limited",
+																							limitPerDay:
+																								limitedMileagePolicy.limitPerDay,
+																							overageFeePerUnit:
+																								limitedMileagePolicy.overageFeePerUnit,
+																							measureUnit:
+																								value as DistanceUnit,
+																						},
+																					})
+																				}}
+																				className="flex w-full gap-2"
+																			>
+																				<ToggleGroupItem
+																					value="km"
+																					className="h-11 flex-1"
+																				>
+																					km
+																				</ToggleGroupItem>
+																				<ToggleGroupItem
+																					value="miles"
+																					className="h-11 flex-1"
+																				>
+																					miles
+																				</ToggleGroupItem>
+																			</ToggleGroup>
+																		</Field>
+																	</div>
+																) : null}
+
+																<Field
+																	orientation="horizontal"
+																	className="items-center justify-between rounded-md border px-3 py-2"
+																>
+																	<div className="space-y-0.5">
+																		<FieldLabel
+																			htmlFor={`requires-deposit-${rateIndex}`}
+																		>
+																			Security deposit
+																		</FieldLabel>
+																		<p className="text-muted-foreground text-xs">
+																			Require an upfront deposit for this model.
+																		</p>
+																	</div>
+																	<Switch
+																		id={`requires-deposit-${rateIndex}`}
+																		checked={rate.requiresDeposit}
+																		onCheckedChange={(checked) =>
+																			updateRateAtIndex(rateIndex, {
+																				requiresDeposit: checked,
+																				depositAmount: checked
+																					? (rate.depositAmount ?? 0)
+																					: undefined,
+																			})
+																		}
+																	/>
+																</Field>
+
+																{rate.requiresDeposit ? (
+																	<Field>
+																		<FieldLabel
+																			htmlFor={`deposit-amount-${rateIndex}`}
+																		>
+																			Deposit amount
+																		</FieldLabel>
+																		<InputGroup className="h-12">
+																			<InputGroupInput
+																				id={`deposit-amount-${rateIndex}`}
+																				type="number"
+																				min={0}
+																				step="0.01"
+																				value={String(rate.depositAmount ?? 0)}
+																				onChange={(event) =>
+																					updateRateAtIndex(rateIndex, {
+																						depositAmount: Number(
+																							event.target.value || 0,
+																						),
+																					})
+																				}
+																				className="h-full"
+																			/>
+																			<InputGroupAddon align="inline-end">
+																				<InputGroupText>USD</InputGroupText>
+																			</InputGroupAddon>
+																		</InputGroup>
+																	</Field>
+																) : null}
+															</div>
+														</div>
+													)
+												})}
+
+												<div className="space-y-2 border-t pt-5 text-center">
+													<p className="text-sm font-medium">Add rates</p>
+													<p className="text-muted-foreground text-sm">
+														Configure pricing, mileage policy, and security
+														deposit for this vehicle.
 													</p>
-												) : (
-													<p className="text-muted-foreground text-xs">
-														Available: {availablePricingModels.join(" • ")}
-													</p>
-												)}
-											</div>
-										</FieldGroup>
-									) : null}
+													<Button
+														type="button"
+														variant="outline"
+														className="mx-auto h-11"
+														onClick={onAddRate}
+														disabled={availablePricingModels.length === 0}
+													>
+														<Plus />
+														Add rate
+													</Button>
+													{availablePricingModels.length === 0 ? (
+														<p className="text-muted-foreground text-xs">
+															All pricing models are already configured.
+														</p>
+													) : (
+														<p className="text-muted-foreground text-xs">
+															Available: {availablePricingModels.join(" • ")}
+														</p>
+													)}
+												</div>
+											</FieldGroup>
+										) : null}
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
 
-					<DrawerFooter className="border-t px-4 pb-4">
-						<div className="drawer-container">
-							{formError ? (
-								<p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-									{formError}
-								</p>
-							) : null}
+						<DrawerFooter className="border-t px-4 pb-4">
+							<div className="drawer-container">
+								{formError ? (
+									<p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+										{formError}
+									</p>
+								) : null}
 
-							<div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-								<Button
-									type="button"
-									variant="outline"
-									className="h-11"
-									onClick={onPreviousStep}
-									disabled={drawerStep === 0}
-								>
-									Back
-								</Button>
-
-								{drawerStep < totalDrawerSteps - 1 ? (
+								<div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
 									<Button
 										type="button"
+										variant="outline"
 										className="h-11"
-										onClick={onNextStep}
-										disabled={uploadImagesMutation.isPending}
+										onClick={onPreviousStep}
+										disabled={drawerStep === 0}
 									>
-										{uploadImagesMutation.isPending &&
-										drawerStep >= 1 &&
-										drawerStep <= 3
-											? "Uploading..."
-											: "Continue"}
+										Back
 									</Button>
-								) : (
-									<Button
-										type="button"
-										className="h-11"
-										onClick={onSubmitVehicle}
-										disabled={
-											createVehicleMutation.isPending ||
-											updateVehicleMutation.isPending ||
-											uploadImagesMutation.isPending
-										}
-									>
-										{createVehicleMutation.isPending ||
-										updateVehicleMutation.isPending
-											? "Saving..."
-											: drawerMode === "create"
-												? "Create vehicle"
+
+									{drawerStep < totalDrawerSteps - 1 ? (
+										<Button
+											type="button"
+											className="h-11"
+											onClick={onNextStep}
+											disabled={uploadImagesMutation.isPending}
+										>
+											{uploadImagesMutation.isPending &&
+											drawerStep >= 1 &&
+											drawerStep <= 3
+												? "Uploading..."
+												: "Continue"}
+										</Button>
+									) : (
+										<Button
+											type="button"
+											className="h-11"
+											onClick={() => {
+												void onSubmitVehicle()
+											}}
+											disabled={
+												updateVehicleMutation.isPending ||
+												uploadImagesMutation.isPending
+											}
+										>
+											{updateVehicleMutation.isPending
+												? "Saving..."
 												: "Save changes"}
-									</Button>
-								)}
+										</Button>
+									)}
+								</div>
 							</div>
-						</div>
-					</DrawerFooter>
-				</DrawerContent>
-			</Drawer>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
+			)}
 
 			<AlertDialog
 				open={Boolean(deleteTarget)}

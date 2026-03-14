@@ -45,6 +45,7 @@ export async function POST(request: Request, { params }: RouteProps) {
 		description?: string
 		dueAt?: string | null
 		linkedDamageId?: string | null
+		metadata?: Record<string, unknown>
 	} | null
 
 	if (
@@ -77,7 +78,7 @@ export async function POST(request: Request, { params }: RouteProps) {
 			currency: scopedRental.record.currency,
 			dueAt,
 			description: payload.description?.trim() || null,
-			metadata: {},
+			metadata: payload.metadata ?? {},
 		})
 		.returning()
 

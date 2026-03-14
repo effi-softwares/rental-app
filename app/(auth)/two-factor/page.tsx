@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { AuthPageShell } from "@/components/auth/auth-page-shell"
+import { AuthPanel } from "@/components/auth/auth-panel"
 import { TwoFactorChallengeForm } from "@/components/auth/two-factor-challenge-form"
 import { routes } from "@/config/routes"
 import { auth } from "@/lib/auth"
@@ -31,14 +32,17 @@ export default async function TwoFactorPage() {
 
 	return (
 		<AuthPageShell
+			eyebrow="Two-factor check"
 			title="Verify your sign-in"
 			description="Use your authentication method to continue securely into the dashboard."
+			visualVariant="two-factor"
+			contentWidth="md"
 		>
 			<Suspense
 				fallback={
-					<div className="w-full max-w-lg rounded-lg border border-border/70 bg-card p-6 text-sm text-muted-foreground">
+					<AuthPanel className="text-sm text-muted-foreground">
 						Loading verification...
-					</div>
+					</AuthPanel>
 				}
 			>
 				<TwoFactorChallengeForm />

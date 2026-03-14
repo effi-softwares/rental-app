@@ -1,60 +1,77 @@
-import { Building2, Sparkles } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { AuthBrand } from "@/components/auth/auth-brand"
+import {
+	AuthVisualPanel,
+	type AuthVisualVariant,
+} from "@/components/auth/auth-visual-panel"
 import { cn } from "@/lib/utils"
 
 type AuthPageShellProps = {
+	eyebrow?: string
 	title: string
 	description: string
 	children: ReactNode
 	className?: string
+	contentClassName?: string
+	contentWidth?: "sm" | "md" | "lg"
+	visualVariant?: AuthVisualVariant
 }
 
 export function AuthPageShell({
+	eyebrow,
 	title,
 	description,
 	children,
 	className,
+	contentClassName,
+	contentWidth = "sm",
+	visualVariant = "sign-in",
 }: AuthPageShellProps) {
+	const contentWidthClassName =
+		contentWidth === "sm"
+			? "max-w-lg lg:max-w-lg"
+			: contentWidth === "md"
+				? "max-w-xl lg:max-w-2xl"
+				: "max-w-xl lg:max-w-3xl"
+
 	return (
-		<main className="min-h-screen bg-background px-4 py-8 sm:px-6 sm:py-10">
-			<div className="mx-auto grid w-full max-w-6xl gap-6 lg:min-h-[calc(100vh-5rem)] lg:grid-cols-[1.1fr_1fr]">
-				<section className="bg-muted/30 ring-foreground/10 relative hidden overflow-hidden rounded-2xl p-8 ring-1 lg:flex lg:flex-col lg:justify-between">
-					<div className="space-y-5">
-						<div className="bg-primary/10 text-primary inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-medium">
-							<Building2 className="size-4" />
-							Rental Ops Dashboard
-						</div>
-						<div className="max-w-md space-y-3">
-							<h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-							<p className="text-muted-foreground text-base">{description}</p>
-						</div>
-					</div>
+		<main className="auth-shell-background min-h-screen">
+			<div className="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+				<div className="mx-auto max-w-7xl p-12 grid w-full items-center gap-8 grid-cols-1 lg:grid-cols-2 lg:gap-18 xl:gap-24">
+					<section
+						className={cn("flex justify-center lg:justify-start", className)}
+					>
+						<div
+							className={cn("w-full", contentWidthClassName, contentClassName)}
+						>
+							<div className="space-y-5">
+								<AuthBrand />
+								<div className="space-y-3">
+									{eyebrow ? (
+										<div className="hidden w-fit rounded-full border border-border/70 bg-muted/45 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase sm:inline-flex">
+											{eyebrow}
+										</div>
+									) : null}
+									<div className="space-y-3">
+										<h1 className="max-w-xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+											{title}
+										</h1>
+										<p className="hidden max-w-xl text-sm leading-7 text-muted-foreground sm:block sm:text-base">
+											{description}
+										</p>
+									</div>
+								</div>
 
-					<div className="bg-background/80 ring-foreground/10 flex items-start gap-3 rounded-xl p-4 ring-1 backdrop-blur-sm">
-						<div className="bg-primary/10 text-primary mt-0.5 inline-flex size-9 items-center justify-center rounded-lg">
-							<Sparkles className="size-4" />
+								{children}
+							</div>
 						</div>
-						<div className="space-y-1">
-							<p className="text-sm font-medium">Touch-first workspace</p>
-							<p className="text-muted-foreground text-sm">
-								Built for quick actions on tablet and mobile without dense UI.
-							</p>
-						</div>
-					</div>
+					</section>
 
-					<div className="bg-primary/15 absolute -right-20 -top-20 size-56 rounded-full blur-3xl" />
-					<div className="bg-chart-1/15 absolute -bottom-24 -left-16 size-64 rounded-full blur-3xl" />
-				</section>
-
-				<section
-					className={cn(
-						"flex items-center justify-center rounded-2xl border border-border/60 bg-background p-2 sm:p-4",
-						className,
-					)}
-				>
-					<div className="w-full max-w-xl">{children}</div>
-				</section>
+					<aside className="relative hidden lg:block">
+						<AuthVisualPanel variant={visualVariant} />
+					</aside>
+				</div>
 			</div>
 		</main>
 	)

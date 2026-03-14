@@ -11,14 +11,12 @@ import {
 	useState,
 } from "react"
 
-import { Button } from "@/components/ui/button"
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card"
+	AuthInlineMessage,
+	AuthMetaGrid,
+	AuthPanel,
+} from "@/components/auth/auth-panel"
+import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { routes } from "@/config/routes"
@@ -57,13 +55,15 @@ function InvitationUnavailableCard({
 	action?: ReactNode
 }) {
 	return (
-		<Card className="w-full max-w-lg border-border/70">
-			<CardHeader>
-				<CardTitle>{title}</CardTitle>
-				<CardDescription>{description}</CardDescription>
-			</CardHeader>
-			{action ? <CardContent>{action}</CardContent> : null}
-		</Card>
+		<AuthPanel className="space-y-5">
+			<div className="space-y-2">
+				<p className="text-xl font-semibold tracking-tight text-foreground">
+					{title}
+				</p>
+				<p className="text-sm leading-6 text-muted-foreground">{description}</p>
+			</div>
+			{action ? <div>{action}</div> : null}
+		</AuthPanel>
 	)
 }
 
@@ -236,7 +236,7 @@ export function InvitationAcceptFlow({
 				title="Invitation unavailable"
 				description="This invitation is invalid or no longer exists."
 				action={
-					<Button asChild className="h-11">
+					<Button asChild size="lg" className="h-12 rounded-xl">
 						<Link href={routes.home}>Go home</Link>
 					</Button>
 				}
@@ -257,7 +257,7 @@ export function InvitationAcceptFlow({
 				title="Invitation unavailable"
 				description={description}
 				action={
-					<Button asChild className="h-11">
+					<Button asChild size="lg" className="h-12 rounded-xl">
 						<Link href={routes.home}>Go home</Link>
 					</Button>
 				}
@@ -274,12 +274,18 @@ export function InvitationAcceptFlow({
 					<div className="flex flex-wrap gap-2">
 						<Button
 							type="button"
-							className="h-11"
+							size="lg"
+							className="h-12 rounded-xl"
 							onClick={() => void onSignOut()}
 						>
 							Sign out
 						</Button>
-						<Button asChild variant="outline" className="h-11">
+						<Button
+							asChild
+							variant="outline"
+							size="lg"
+							className="h-12 rounded-xl"
+						>
 							<Link href={routes.home}>Cancel</Link>
 						</Button>
 					</div>
@@ -290,124 +296,133 @@ export function InvitationAcceptFlow({
 
 	if (!invitation.accountExists) {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Create account to continue</CardTitle>
-					<CardDescription>
+			<AuthPanel className="space-y-5">
+				<div className="space-y-2">
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Create account to continue
+					</p>
+					<p className="text-sm leading-6 text-muted-foreground">
 						{invitation.email} was invited to join{" "}
 						{invitation.organization.name} as {invitation.role ?? "member"}.
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<p className="text-muted-foreground text-sm">
-						No account exists for this email yet. Continue to account setup and
-						we&apos;ll create the account directly from this invitation.
 					</p>
-					<Button asChild className="h-11 w-full">
-						<Link href={routes.invitations.setup(invitationId)}>
-							Continue to setup
-						</Link>
-					</Button>
-				</CardContent>
-			</Card>
+				</div>
+				<AuthInlineMessage>
+					No account exists for this email yet. Continue to account setup and
+					we&apos;ll create the account directly from this invitation.
+				</AuthInlineMessage>
+				<Button asChild size="lg" className="h-12 w-full rounded-xl">
+					<Link href={routes.invitations.setup(invitationId)}>
+						Continue to setup
+					</Link>
+				</Button>
+			</AuthPanel>
 		)
 	}
 
 	if (hasMatchingSessionEmail) {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Join {invitation.organization.name}</CardTitle>
-					<CardDescription>
+			<AuthPanel className="space-y-5">
+				<div className="space-y-2">
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Join {invitation.organization.name}
+					</p>
+					<p className="text-sm leading-6 text-muted-foreground">
 						Accept this invitation to join as {invitation.role ?? "member"}.
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="rounded-lg border bg-muted/30 p-3 text-sm">
-						<p>
-							<span className="text-muted-foreground">Invited email:</span>{" "}
-							{invitation.email}
-						</p>
-						<p>
-							<span className="text-muted-foreground">Organization:</span>{" "}
-							{invitation.organization.name}
-						</p>
-					</div>
+					</p>
+				</div>
 
-					{error ? <p className="text-destructive text-sm">{error}</p> : null}
+				<AuthMetaGrid
+					items={[
+						{ label: "Invited email", value: invitation.email },
+						{ label: "Organization", value: invitation.organization.name },
+					]}
+				/>
 
-					<div className="grid gap-2 sm:grid-cols-2">
-						<Button
-							type="button"
-							className="h-11"
-							disabled={acceptMutation.isPending || rejectMutation.isPending}
-							onClick={() =>
-								void acceptMutation.mutateAsync(invitation.organization.id)
-							}
-						>
-							{acceptMutation.isPending ? "Joining..." : "Accept invitation"}
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className="h-11"
-							disabled={acceptMutation.isPending || rejectMutation.isPending}
-							onClick={() => void rejectMutation.mutateAsync()}
-						>
-							{rejectMutation.isPending ? "Declining..." : "Decline"}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
+				{error ? (
+					<AuthInlineMessage variant="destructive">{error}</AuthInlineMessage>
+				) : null}
+
+				<div className="grid gap-2 sm:grid-cols-2">
+					<Button
+						type="button"
+						size="lg"
+						className="h-12 rounded-xl"
+						disabled={acceptMutation.isPending || rejectMutation.isPending}
+						onClick={() =>
+							void acceptMutation.mutateAsync(invitation.organization.id)
+						}
+					>
+						{acceptMutation.isPending ? "Joining..." : "Accept invitation"}
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="lg"
+						className="h-12 rounded-xl"
+						disabled={acceptMutation.isPending || rejectMutation.isPending}
+						onClick={() => void rejectMutation.mutateAsync()}
+					>
+						{rejectMutation.isPending ? "Declining..." : "Decline"}
+					</Button>
+				</div>
+			</AuthPanel>
 		)
 	}
 
 	return (
-		<Card className="w-full max-w-lg border-border/70">
-			<CardHeader>
-				<CardTitle>Sign in to accept invitation</CardTitle>
-				<CardDescription>
+		<AuthPanel className="space-y-5">
+			<div className="space-y-2">
+				<p className="text-xl font-semibold tracking-tight text-foreground">
+					Sign in to accept invitation
+				</p>
+				<p className="text-sm leading-6 text-muted-foreground">
 					Sign in with {invitation.email} to join {invitation.organization.name}{" "}
 					as {invitation.role ?? "member"}.
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={onSignIn}>
-					<FieldGroup>
-						<Field>
-							<FieldLabel htmlFor="inviteEmail">Email</FieldLabel>
-							<Input
-								id="inviteEmail"
-								type="email"
-								value={signInEmail}
-								onChange={(event) => setSignInEmail(event.target.value)}
-								autoComplete="email"
-								className="h-11"
-								required
-							/>
-						</Field>
+				</p>
+			</div>
 
-						<Field>
-							<FieldLabel htmlFor="password">Password</FieldLabel>
-							<Input
-								id="password"
-								type="password"
-								value={signInPassword}
-								onChange={(event) => setSignInPassword(event.target.value)}
-								autoComplete="current-password"
-								className="h-11"
-								required
-							/>
-						</Field>
+			<form onSubmit={onSignIn}>
+				<FieldGroup className="gap-5">
+					<AuthInlineMessage>
+						Use the exact invited email so the workspace can match this account
+						to the invitation.
+					</AuthInlineMessage>
 
-						{error ? <p className="text-destructive text-sm">{error}</p> : null}
+					<Field>
+						<FieldLabel htmlFor="inviteEmail">Email</FieldLabel>
+						<Input
+							id="inviteEmail"
+							type="email"
+							value={signInEmail}
+							onChange={(event) => setSignInEmail(event.target.value)}
+							autoComplete="email"
+							className="h-12 rounded-xl"
+							required
+						/>
+					</Field>
 
-						<Button type="submit" className="h-11 w-full">
-							Sign in
-						</Button>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+					<Field>
+						<FieldLabel htmlFor="password">Password</FieldLabel>
+						<Input
+							id="password"
+							type="password"
+							value={signInPassword}
+							onChange={(event) => setSignInPassword(event.target.value)}
+							autoComplete="current-password"
+							className="h-12 rounded-xl"
+							required
+						/>
+					</Field>
+
+					{error ? (
+						<AuthInlineMessage variant="destructive">{error}</AuthInlineMessage>
+					) : null}
+
+					<Button type="submit" size="lg" className="h-12 w-full rounded-xl">
+						Sign in
+					</Button>
+				</FieldGroup>
+			</form>
+		</AuthPanel>
 	)
 }

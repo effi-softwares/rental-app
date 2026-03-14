@@ -5,14 +5,12 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { type FormEvent, useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card"
+	AuthInlineMessage,
+	AuthMetaGrid,
+	AuthPanel,
+} from "@/components/auth/auth-panel"
+import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { routes } from "@/config/routes"
@@ -153,32 +151,32 @@ export function InvitationSetupFlow({
 
 	if (invitationQuery.isPending) {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Loading invitation</CardTitle>
-					<CardDescription>
-						Checking whether this invitation is ready for account setup.
-					</CardDescription>
-				</CardHeader>
-			</Card>
+			<AuthPanel className="space-y-2">
+				<p className="text-xl font-semibold tracking-tight text-foreground">
+					Loading invitation
+				</p>
+				<p className="text-sm leading-6 text-muted-foreground">
+					Checking whether this invitation is ready for account setup.
+				</p>
+			</AuthPanel>
 		)
 	}
 
 	if (invitationQuery.isError || !invitationQuery.data) {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Invitation unavailable</CardTitle>
-					<CardDescription>
+			<AuthPanel className="space-y-5">
+				<div className="space-y-2">
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Invitation unavailable
+					</p>
+					<p className="text-sm leading-6 text-muted-foreground">
 						This invitation is invalid or no longer exists.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<Button asChild className="h-11">
-						<Link href={routes.home}>Go home</Link>
-					</Button>
-				</CardContent>
-			</Card>
+					</p>
+				</div>
+				<Button asChild size="lg" className="h-12 rounded-xl">
+					<Link href={routes.home}>Go home</Link>
+				</Button>
+			</AuthPanel>
 		)
 	}
 
@@ -188,154 +186,176 @@ export function InvitationSetupFlow({
 
 	if (invitation.invitationState !== "pending") {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Invitation unavailable</CardTitle>
-					<CardDescription>
+			<AuthPanel className="space-y-5">
+				<div className="space-y-2">
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Invitation unavailable
+					</p>
+					<p className="text-sm leading-6 text-muted-foreground">
 						{invitation.invitationState === "expired"
 							? "This invitation has expired. Ask for a new one to continue."
 							: `This invitation is already ${invitation.invitationState}.`}
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<Button asChild className="h-11">
-						<Link href={routes.home}>Go home</Link>
-					</Button>
-				</CardContent>
-			</Card>
+					</p>
+				</div>
+				<Button asChild size="lg" className="h-12 rounded-xl">
+					<Link href={routes.home}>Go home</Link>
+				</Button>
+			</AuthPanel>
 		)
 	}
 
 	if (invitation.accountExists) {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Account already exists</CardTitle>
-					<CardDescription>
+			<AuthPanel className="space-y-5">
+				<div className="space-y-2">
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Account already exists
+					</p>
+					<p className="text-sm leading-6 text-muted-foreground">
 						{invitation.email} already has an account. Return to the accept
 						screen and sign in with that email.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<Button asChild className="h-11 w-full">
-						<Link href={routes.invitations.accept(invitationId)}>
-							Back to invitation
-						</Link>
-					</Button>
-				</CardContent>
-			</Card>
+					</p>
+				</div>
+				<Button asChild size="lg" className="h-12 w-full rounded-xl">
+					<Link href={routes.invitations.accept(invitationId)}>
+						Back to invitation
+					</Link>
+				</Button>
+			</AuthPanel>
 		)
 	}
 
 	if (session.data?.user && sessionEmail !== invitationEmail) {
 		return (
-			<Card className="w-full max-w-lg border-border/70">
-				<CardHeader>
-					<CardTitle>Wrong signed-in account</CardTitle>
-					<CardDescription>
+			<AuthPanel className="space-y-5">
+				<div className="space-y-2">
+					<p className="text-xl font-semibold tracking-tight text-foreground">
+						Wrong signed-in account
+					</p>
+					<p className="text-sm leading-6 text-muted-foreground">
 						Sign out from {session.data.user.email ?? "the current account"} to
 						create the invited account for {invitation.email}.
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="flex flex-wrap gap-2">
+					</p>
+				</div>
+				<div className="flex flex-wrap gap-2">
 					<Button
 						type="button"
-						className="h-11"
+						size="lg"
+						className="h-12 rounded-xl"
 						onClick={() => void onSignOut()}
 					>
 						Sign out
 					</Button>
-					<Button asChild variant="outline" className="h-11">
+					<Button
+						asChild
+						variant="outline"
+						size="lg"
+						className="h-12 rounded-xl"
+					>
 						<Link href={routes.home}>Cancel</Link>
 					</Button>
-				</CardContent>
-			</Card>
+				</div>
+			</AuthPanel>
 		)
 	}
 
 	return (
-		<Card className="w-full max-w-lg border-border/70">
-			<CardHeader>
-				<CardTitle>Create your invited account</CardTitle>
-				<CardDescription>
+		<AuthPanel className="space-y-5">
+			<div className="space-y-2">
+				<p className="text-xl font-semibold tracking-tight text-foreground">
+					Create your invited account
+				</p>
+				<p className="text-sm leading-6 text-muted-foreground">
 					Create the account for {invitation.email} and join{" "}
 					{invitation.organization.name} as {invitation.role ?? "member"}.
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={onSubmit}>
-					<FieldGroup>
-						<div className="grid gap-4 sm:grid-cols-2">
-							<Field>
-								<FieldLabel htmlFor="firstName">First name</FieldLabel>
-								<Input
-									id="firstName"
-									name="firstName"
-									className="h-11"
-									required
-								/>
-							</Field>
-							<Field>
-								<FieldLabel htmlFor="lastName">Last name</FieldLabel>
-								<Input
-									id="lastName"
-									name="lastName"
-									className="h-11"
-									required
-								/>
-							</Field>
-						</div>
+				</p>
+			</div>
 
-						<Field>
-							<FieldLabel htmlFor="email">Invited email</FieldLabel>
-							<Input
-								id="email"
-								value={invitation.email}
-								readOnly
-								className="text-muted-foreground h-11"
-							/>
-						</Field>
+			<AuthMetaGrid
+				items={[
+					{ label: "Organization", value: invitation.organization.name },
+					{ label: "Role", value: invitation.role ?? "member" },
+				]}
+			/>
 
+			<form onSubmit={onSubmit}>
+				<FieldGroup className="gap-5">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<Field>
-							<FieldLabel htmlFor="password">Password</FieldLabel>
+							<FieldLabel htmlFor="firstName">First name</FieldLabel>
 							<Input
-								id="password"
-								name="password"
-								type="password"
-								minLength={8}
-								autoComplete="new-password"
-								className="h-11"
+								id="firstName"
+								name="firstName"
+								className="h-12 rounded-xl"
 								required
 							/>
 						</Field>
-
 						<Field>
-							<FieldLabel htmlFor="confirmPassword">
-								Confirm password
-							</FieldLabel>
+							<FieldLabel htmlFor="lastName">Last name</FieldLabel>
 							<Input
-								id="confirmPassword"
-								name="confirmPassword"
-								type="password"
-								minLength={8}
-								autoComplete="new-password"
-								className="h-11"
+								id="lastName"
+								name="lastName"
+								className="h-12 rounded-xl"
 								required
 							/>
 						</Field>
+					</div>
 
-						{error ? <p className="text-destructive text-sm">{error}</p> : null}
+					<Field>
+						<FieldLabel htmlFor="email">Invited email</FieldLabel>
+						<Input
+							id="email"
+							value={invitation.email}
+							readOnly
+							className="h-12 rounded-xl text-muted-foreground"
+						/>
+					</Field>
 
-						<Button
-							type="submit"
-							className="h-11 w-full"
-							disabled={isSubmitting}
-						>
-							{isSubmitting ? "Creating account..." : "Create account and join"}
-						</Button>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+					<Field>
+						<FieldLabel htmlFor="password">Password</FieldLabel>
+						<Input
+							id="password"
+							name="password"
+							type="password"
+							minLength={8}
+							autoComplete="new-password"
+							className="h-12 rounded-xl"
+							required
+						/>
+					</Field>
+
+					<Field>
+						<FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
+						<Input
+							id="confirmPassword"
+							name="confirmPassword"
+							type="password"
+							minLength={8}
+							autoComplete="new-password"
+							className="h-12 rounded-xl"
+							required
+						/>
+					</Field>
+
+					<AuthInlineMessage>
+						This invitation is locked to {invitation.email}. The new account
+						will join the organization immediately after creation.
+					</AuthInlineMessage>
+
+					{error ? (
+						<AuthInlineMessage variant="destructive">{error}</AuthInlineMessage>
+					) : null}
+
+					<Button
+						type="submit"
+						size="lg"
+						className="h-12 w-full rounded-xl"
+						disabled={isSubmitting}
+					>
+						{isSubmitting ? "Creating account..." : "Create account and join"}
+					</Button>
+				</FieldGroup>
+			</form>
+		</AuthPanel>
 	)
 }

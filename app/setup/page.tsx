@@ -23,8 +23,11 @@ export default async function SetupPage() {
 
 	return (
 		<AuthPageShell
+			eyebrow="Workspace setup"
 			title="Set up your workspace"
 			description="Create your first organization to start using the app."
+			visualVariant="onboarding"
+			contentWidth="lg"
 		>
 			<OnboardingForm
 				userName={resolved.user?.name ?? "Owner"}

@@ -16,6 +16,7 @@ type VehicleImageGroupUploadProps = {
 	onFilesSelected: (files: File[]) => void
 	onRemove: (assetId: string) => void
 	uploadProgressByFile: Record<string, number>
+	variant?: "default" | "wizard"
 }
 
 export function VehicleImageGroupUpload({
@@ -26,11 +27,19 @@ export function VehicleImageGroupUpload({
 	onFilesSelected,
 	onRemove,
 	uploadProgressByFile,
+	variant = "default",
 }: VehicleImageGroupUploadProps) {
 	const blurReadyCount = assets.length
+	const isWizard = variant === "wizard"
 
 	return (
-		<div className="grid gap-5 border-y py-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+		<div
+			className={
+				isWizard
+					? "grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]"
+					: "grid gap-5 border-y py-5 lg:grid-cols-[220px_minmax(0,1fr)]"
+			}
+		>
 			<div className="space-y-3">
 				<div className="space-y-1">
 					<p className="text-muted-foreground text-xs font-medium tracking-[0.08em] uppercase">
@@ -90,7 +99,11 @@ export function VehicleImageGroupUpload({
 							return (
 								<div
 									key={asset.assetId}
-									className="overflow-hidden rounded-md border"
+									className={
+										isWizard
+											? "overflow-hidden rounded-2xl border bg-background/80"
+											: "overflow-hidden rounded-md border"
+									}
 								>
 									<div className="bg-muted/40 relative aspect-[4/3] overflow-hidden">
 										<MediaImage
@@ -120,7 +133,13 @@ export function VehicleImageGroupUpload({
 										</Button>
 									</div>
 
-									<div className="flex items-center justify-between gap-2 px-2 py-1.5">
+									<div
+										className={
+											isWizard
+												? "flex items-center justify-between gap-2 px-3 py-2"
+												: "flex items-center justify-between gap-2 px-2 py-1.5"
+										}
+									>
 										<p className="text-muted-foreground truncate text-xs">
 											{asset.assetId.slice(0, 8)}
 										</p>

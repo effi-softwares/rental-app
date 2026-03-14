@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { VehicleLiveLocationTab } from "@/components/fleet/vehicle-live-location-tab"
@@ -14,9 +14,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card"
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { PageContentShell } from "@/components/ui/page-content-shell"
-import { PageSectionHeader } from "@/components/ui/page-section-header"
+import { ResponsiveDrawer } from "@/components/ui/responsive-drawer"
 import {
 	Table,
 	TableBody,
@@ -31,6 +38,7 @@ import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import {
 	type RentalChargeKind,
+	type RentalChargeSummary,
 	type RentalDamageCategory,
 	type RentalDamageSeverity,
 	useCollectCashPaymentMutation,
@@ -42,18 +50,27 @@ import {
 	usePrepareRentalPaymentMutation,
 	useRentalDraftQuery,
 	useResolveRentalDepositMutation,
-	useReturnRentalMutation,
 	useSaveRentalInspectionMutation,
 } from "@/features/rentals"
+import {
+	getRentalAttentionMessages,
+	getRentalPlanLabel,
+	getRentalPrimaryAction,
+	getRentalStatusLabel,
+} from "@/features/rentals/lib/ui-state"
 import { resolveErrorMessage } from "@/lib/errors"
 import { isPrivilegedFleetRole } from "@/lib/fleet/live"
 import { RentalAppointmentDrawer } from "./rental-appointment-drawer"
 import { RentalPaymentAuBecsForm } from "./rental-payment-au-becs-form"
 import { RentalPaymentTerminalPanel } from "./rental-payment-terminal-panel"
+import { RentalReturnDrawer } from "./rental-return-drawer"
 
 type RentalDetailsProps = {
 	rentalId: string
 }
+
+type BillingPanel = "collect" | "deposit" | "charges" | "history"
+type OperationsPanel = "pickup" | "extend" | "return"
 
 function formatCurrency(amount: number, currency: string) {
 	return new Intl.NumberFormat("en-AU", {
@@ -154,13 +171,13 @@ function SummaryStat({
 	subtitle?: string
 }) {
 	return (
-		<div className="rounded-lg border px-4 py-3">
+		<div className="rounded-2xl border bg-background px-4 py-4 shadow-xs">
 			<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
 				{label}
 			</p>
-			<p className="mt-2 text-2xl font-semibold">{value}</p>
+			<p className="mt-3 text-2xl font-semibold">{value}</p>
 			{subtitle ? (
-				<p className="text-muted-foreground mt-1 text-xs">{subtitle}</p>
+				<p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
 			) : null}
 		</div>
 	)
@@ -168,6 +185,55 @@ function SummaryStat({
 
 function SectionEmpty({ message }: { message: string }) {
 	return <p className="text-muted-foreground text-sm">{message}</p>
+}
+
+function DetailPair({
+	label,
+	value,
+	hint,
+}: {
+	label: string
+	value: string
+	hint?: string
+}) {
+	return (
+		<div className="rounded-2xl border bg-muted/20 p-4">
+			<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
+				{label}
+			</p>
+			<p className="mt-2 text-sm font-medium">{value}</p>
+			{hint ? (
+				<p className="text-muted-foreground mt-1 text-sm">{hint}</p>
+			) : null}
+		</div>
+	)
+}
+
+function PanelToggle({
+	value,
+	activeValue,
+	onClick,
+}: {
+	value: string
+	activeValue: string
+	onClick: () => void
+}) {
+	return (
+		<Button
+			type="button"
+			variant={value === activeValue ? "default" : "outline"}
+			onClick={onClick}
+		>
+			{value}
+		</Button>
+	)
+}
+
+function formatTimelineLabel(type: string) {
+	return type
+		.split(".")
+		.map((segment) => segment.replaceAll("_", " "))
+		.join(" / ")
 }
 
 export function RentalDetails({ rentalId }: RentalDetailsProps) {
@@ -186,7 +252,6 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	const preparePaymentMutation = usePrepareRentalPaymentMutation(organizationId)
 	const collectCashMutation = useCollectCashPaymentMutation(organizationId)
 	const handoverMutation = useHandoverRentalMutation(organizationId)
-	const returnMutation = useReturnRentalMutation(organizationId)
 	const inspectionMutation = useSaveRentalInspectionMutation(organizationId)
 	const extendMutation = useExtendRentalMutation(organizationId)
 	const createChargeMutation = useCreateRentalChargeMutation(organizationId)
@@ -195,12 +260,26 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 
 	const detail = rentalDetailQuery.data
 	const [activeTab, setActiveTab] = useState("overview")
+	const [activeBillingPanel, setActiveBillingPanel] =
+		useState<BillingPanel>("collect")
+	const [activeOperationsPanel, setActiveOperationsPanel] =
+		useState<OperationsPanel>("pickup")
 	const [isEditOpen, setIsEditOpen] = useState(false)
+	const [isFinalizeOpen, setIsFinalizeOpen] = useState(false)
+	const [isHandoverOpen, setIsHandoverOpen] = useState(false)
+	const [isReturnFlowOpen, setIsReturnFlowOpen] = useState(false)
 	const [selectedScheduleId, setSelectedScheduleId] = useState<string>("")
 	const [paymentMethodType, setPaymentMethodType] = useState<
 		"cash" | "card" | "au_becs_debit"
 	>("cash")
-	const [amountTendered, setAmountTendered] = useState("")
+	const [scheduleAmountTendered, setScheduleAmountTendered] = useState("")
+	const [handoverAmountTendered, setHandoverAmountTendered] = useState("")
+	const [chargeToCollect, setChargeToCollect] =
+		useState<RentalChargeSummary | null>(null)
+	const [chargeCollectionMethod, setChargeCollectionMethod] = useState<
+		"cash" | "card"
+	>("cash")
+	const [chargeAmountTendered, setChargeAmountTendered] = useState("")
 	const [paymentSession, setPaymentSession] = useState<{
 		mode: "payment" | "setup"
 		clientSecret: string
@@ -218,17 +297,8 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		useState<RentalDamageCategory>("exterior")
 	const [pickupDamageSeverity, setPickupDamageSeverity] =
 		useState<RentalDamageSeverity>("minor")
-	const [returnNotes, setReturnNotes] = useState("")
-	const [returnOdometer, setReturnOdometer] = useState("")
-	const [returnFuelPercent, setReturnFuelPercent] = useState("")
-	const [returnDamageTitle, setReturnDamageTitle] = useState("")
-	const [returnDamageCategory, setReturnDamageCategory] =
-		useState<RentalDamageCategory>("exterior")
-	const [returnDamageSeverity, setReturnDamageSeverity] =
-		useState<RentalDamageSeverity>("minor")
 	const [extensionDate, setExtensionDate] = useState("")
 	const [extensionReason, setExtensionReason] = useState("")
-	const [returnCloseNotes, setReturnCloseNotes] = useState("")
 	const [newChargeKind, setNewChargeKind] = useState<RentalChargeKind>("damage")
 	const [newChargeAmount, setNewChargeAmount] = useState("")
 	const [newChargeTaxAmount, setNewChargeTaxAmount] = useState("")
@@ -258,6 +328,34 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 				? new Date(detail.rental.plannedEndAt).toISOString().slice(0, 16)
 				: "",
 		)
+		setActiveOperationsPanel(
+			detail.rental.status === "active" ? "return" : "pickup",
+		)
+	}, [detail])
+
+	const primaryAction = detail ? getRentalPrimaryAction(detail) : null
+	const attentionMessages = detail ? getRentalAttentionMessages(detail) : []
+	const openCharges =
+		detail?.extraCharges.filter(
+			(row) => row.status === "open" || row.status === "partially_paid",
+		) ?? []
+
+	const paymentSummary = useMemo(() => {
+		if (!detail) {
+			return {
+				completedPayments: 0,
+				pendingSchedules: 0,
+			}
+		}
+
+		return {
+			completedPayments: detail.payments.filter(
+				(payment) => payment.status === "succeeded",
+			).length,
+			pendingSchedules: detail.paymentSchedule.filter(
+				(schedule) => schedule.status !== "succeeded",
+			).length,
+		}
 	}, [detail])
 
 	async function handlePreparePayment() {
@@ -289,15 +387,20 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 			return
 		}
 
+		if (!scheduleAmountTendered.trim() || Number(scheduleAmountTendered) <= 0) {
+			toast.error("Enter the cash amount received for this payment.")
+			return
+		}
+
 		try {
 			await collectCashMutation.mutateAsync({
 				rentalId,
 				payload: {
 					scheduleId: selectedScheduleId,
-					amountTendered: Number(amountTendered),
+					amountTendered: Number(scheduleAmountTendered),
 				},
 			})
-			setAmountTendered("")
+			setScheduleAmountTendered("")
 			toast.success("Cash payment collected.")
 			void rentalDetailQuery.refetch()
 		} catch (error) {
@@ -316,6 +419,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 				},
 			})
 			setSignature("")
+			setIsFinalizeOpen(false)
 			toast.success("Rental finalized.")
 			void rentalDetailQuery.refetch()
 		} catch (error) {
@@ -325,17 +429,27 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 
 	async function handleHandover() {
 		try {
+			if (
+				detail?.rental.selectedPaymentMethodType === "cash" &&
+				detail.rental.firstCollectionTiming === "handover" &&
+				(!handoverAmountTendered.trim() || Number(handoverAmountTendered) <= 0)
+			) {
+				toast.error("Enter the cash amount collected at handover.")
+				return
+			}
+
 			await handoverMutation.mutateAsync({
 				rentalId,
 				payload:
 					detail?.rental.selectedPaymentMethodType === "cash" &&
-					detail.rental.firstCollectionTiming === "handover" &&
-					amountTendered
+					detail.rental.firstCollectionTiming === "handover"
 						? {
-								amountTendered: Number(amountTendered),
+								amountTendered: Number(handoverAmountTendered),
 							}
 						: {},
 			})
+			setHandoverAmountTendered("")
+			setIsHandoverOpen(false)
 			toast.success("Rental handed over.")
 			void rentalDetailQuery.refetch()
 		} catch (error) {
@@ -343,52 +457,39 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		}
 	}
 
-	async function handleSaveInspection(stage: "pickup" | "return") {
+	async function handleSaveInspection() {
 		try {
-			const isPickup = stage === "pickup"
 			await inspectionMutation.mutateAsync({
 				rentalId,
-				stage,
+				stage: "pickup",
 				payload: {
-					stage,
-					odometerKm: Number(
-						isPickup ? pickupOdometer || "0" : returnOdometer || "0",
-					),
-					fuelPercent: Number(
-						isPickup ? pickupFuelPercent || "0" : returnFuelPercent || "0",
-					),
+					stage: "pickup",
+					odometerKm: Number(pickupOdometer || "0"),
+					fuelPercent: Number(pickupFuelPercent || "0"),
 					cleanliness: "clean",
-					notes: isPickup ? pickupNotes : returnNotes,
+					checklist: {
+						exteriorChecked: true,
+						interiorChecked: true,
+						keysReceived: true,
+					},
+					notes: pickupNotes,
 					damages:
-						(isPickup ? pickupDamageTitle : returnDamageTitle).trim().length > 0
+						pickupDamageTitle.trim().length > 0
 							? [
 									{
-										category: isPickup
-											? pickupDamageCategory
-											: returnDamageCategory,
-										title: isPickup ? pickupDamageTitle : returnDamageTitle,
-										severity: isPickup
-											? pickupDamageSeverity
-											: returnDamageSeverity,
+										category: pickupDamageCategory,
+										title: pickupDamageTitle,
+										severity: pickupDamageSeverity,
 									},
 								]
 							: [],
 				},
 			})
-			if (isPickup) {
-				setPickupNotes("")
-				setPickupOdometer("")
-				setPickupFuelPercent("")
-				setPickupDamageTitle("")
-			} else {
-				setReturnNotes("")
-				setReturnOdometer("")
-				setReturnFuelPercent("")
-				setReturnDamageTitle("")
-			}
-			toast.success(
-				isPickup ? "Pickup inspection saved." : "Return inspection saved.",
-			)
+			setPickupNotes("")
+			setPickupOdometer("")
+			setPickupFuelPercent("")
+			setPickupDamageTitle("")
+			toast.success("Pickup inspection saved.")
 			void rentalDetailQuery.refetch()
 		} catch (error) {
 			toast.error(resolveErrorMessage(error, "Failed to save inspection."))
@@ -432,28 +533,33 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		}
 	}
 
-	async function handleCollectCharge(chargeId: string) {
-		const paymentMethod = window.prompt(
-			"Collect charge with `cash` or `card`?",
-			"cash",
-		)
-
-		if (paymentMethod !== "cash" && paymentMethod !== "card") {
+	async function handleCollectCharge() {
+		if (!chargeToCollect) {
 			return
 		}
 
-		const tendered =
-			paymentMethod === "cash" ? window.prompt("Amount tendered", "") : null
+		if (
+			chargeCollectionMethod === "cash" &&
+			(!chargeAmountTendered.trim() || Number(chargeAmountTendered) <= 0)
+		) {
+			toast.error("Enter the cash amount received for this charge.")
+			return
+		}
 
 		try {
 			await collectChargeMutation.mutateAsync({
 				rentalId,
-				chargeId,
+				chargeId: chargeToCollect.id,
 				payload: {
-					paymentMethodType: paymentMethod,
-					amountTendered: tendered ? Number(tendered) : undefined,
+					paymentMethodType: chargeCollectionMethod,
+					amountTendered:
+						chargeCollectionMethod === "cash"
+							? Number(chargeAmountTendered)
+							: undefined,
 				},
 			})
+			setChargeToCollect(null)
+			setChargeAmountTendered("")
 			toast.success("Charge collected.")
 			void rentalDetailQuery.refetch()
 		} catch (error) {
@@ -488,29 +594,37 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		}
 	}
 
-	async function handleReturn() {
-		try {
-			await returnMutation.mutateAsync({
-				rentalId,
-				payload: {
-					notes: returnCloseNotes,
-				},
-			})
-			setReturnCloseNotes("")
-			toast.success("Rental closed.")
-			void rentalDetailQuery.refetch()
-		} catch (error) {
-			toast.error(resolveErrorMessage(error, "Failed to complete return."))
+	function handlePrimaryActionClick() {
+		if (!primaryAction || primaryAction.type === "none") {
+			return
 		}
+
+		if (primaryAction.type === "finalize") {
+			setIsFinalizeOpen(true)
+			return
+		}
+
+		if (primaryAction.type === "handover") {
+			setIsHandoverOpen(true)
+			return
+		}
+
+		setActiveTab("operations")
+		setActiveOperationsPanel("return")
+		setIsReturnFlowOpen(true)
 	}
 
 	if (rentalDetailQuery.isPending) {
 		return (
 			<PageContentShell>
-				<PageSectionHeader
-					title="Rental Details"
-					description="Loading rental operations dashboard..."
-				/>
+				<Card>
+					<CardHeader>
+						<CardTitle>Rental details</CardTitle>
+						<CardDescription>
+							Loading the rental workflow and payment summary...
+						</CardDescription>
+					</CardHeader>
+				</Card>
 			</PageContentShell>
 		)
 	}
@@ -518,11 +632,13 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	if (!detail || rentalDetailQuery.isError) {
 		return (
 			<PageContentShell>
-				<PageSectionHeader
-					title="Rental Details"
-					description="Unable to load this rental."
-				/>
 				<Card>
+					<CardHeader>
+						<CardTitle>Rental details</CardTitle>
+						<CardDescription>
+							We could not load this rental right now.
+						</CardDescription>
+					</CardHeader>
 					<CardContent>
 						<p className="text-destructive text-sm">
 							{resolveErrorMessage(
@@ -536,106 +652,148 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		)
 	}
 
-	const openCharges = detail.extraCharges.filter(
-		(row) => row.status === "open" || row.status === "partially_paid",
-	)
-
 	return (
-		<PageContentShell className="pb-8">
-			<div className="sticky top-4 z-10 rounded-2xl border bg-background/95 p-4 backdrop-blur">
-				<PageSectionHeader
-					title={`Rental ${detail.rental.id.slice(0, 8)}`}
-					description={`${detail.customer?.fullName ?? "Customer pending"} • ${detail.vehicle?.label ?? "Vehicle pending"} • ${detail.branch?.name ?? "No branch"}`}
-					actions={
-						<>
+		<PageContentShell className="space-y-5 pb-8">
+			<div className="sticky top-4 z-20 rounded-3xl border bg-background/95 p-5 shadow-sm backdrop-blur">
+				<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+					<div className="space-y-3">
+						<div className="flex flex-wrap items-center gap-2">
+							<p className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+								Rental workflow
+							</p>
 							<Badge
 								variant="outline"
 								className={rentalStatusBadgeClass(detail.rental.status)}
 							>
-								{detail.rental.status.replaceAll("_", " ")}
+								{getRentalStatusLabel(detail.rental.status)}
 							</Badge>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									setIsEditOpen(true)
-								}}
-								disabled={!detail.actionState.canEditBooking}
-							>
-								Edit booking
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									void handleFinalize()
-								}}
-								disabled={!detail.actionState.canFinalize}
-							>
-								Finalize
-							</Button>
-							<Button
-								type="button"
-								onClick={() => {
-									void handleHandover()
-								}}
-								disabled={!detail.actionState.canHandover}
-							>
-								Handover
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									setActiveTab("operations")
-								}}
-								disabled={!detail.actionState.canExtend}
-							>
-								Extend
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									setActiveTab("operations")
-								}}
-								disabled={!detail.actionState.canInitiateReturn}
-							>
-								Initiate return
-							</Button>
-						</>
-					}
-				/>
+							<Badge variant="outline">
+								{getRentalPlanLabel(detail.rental.paymentPlanKind)}
+							</Badge>
+						</div>
+						<div>
+							<h1 className="text-2xl font-semibold tracking-tight">
+								Rental {detail.rental.id.slice(0, 8)}
+							</h1>
+							<p className="text-muted-foreground mt-1 text-sm sm:text-base">
+								{detail.customer?.fullName ?? "Customer pending"} •{" "}
+								{detail.vehicle?.label ?? "Vehicle pending"} •{" "}
+								{detail.branch?.name ?? "No branch"}
+							</p>
+						</div>
+						<p className="max-w-3xl text-sm font-medium sm:text-base">
+							{primaryAction?.description}
+						</p>
+					</div>
 
-				<div className="mt-4 grid gap-3 md:grid-cols-4">
-					<SummaryStat
-						label="Balance Due"
-						value={formatCurrency(
-							detail.financials.balanceDue,
-							detail.rental.currency,
-						)}
-						subtitle="Schedules + extra charges less deposit applied"
-					/>
-					<SummaryStat
-						label="Deposit Held"
-						value={formatCurrency(
-							detail.financials.depositHeld,
-							detail.rental.currency,
-						)}
-						subtitle={`Required ${formatCurrency(detail.deposit.amount, detail.rental.currency)}`}
-					/>
-					<SummaryStat
-						label="Planned Window"
-						value={formatDateTime(detail.rental.plannedStartAt)}
-						subtitle={formatDateTime(detail.rental.plannedEndAt)}
-					/>
-					<SummaryStat
-						label="Actual Window"
-						value={formatDateTime(detail.rental.actualStartAt)}
-						subtitle={formatDateTime(detail.rental.actualEndAt)}
-					/>
+					<div className="flex flex-wrap items-center gap-2">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button type="button" variant="outline" size="icon-sm">
+									<span className="sr-only">Open rental actions</span>
+									...
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-48">
+								<DropdownMenuLabel>Rental actions</DropdownMenuLabel>
+								<DropdownMenuItem
+									onSelect={() => {
+										setIsEditOpen(true)
+									}}
+									disabled={!detail.actionState.canEditBooking}
+								>
+									Edit booking
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => {
+										setActiveTab("billing")
+									}}
+								>
+									Open billing
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => {
+										setActiveTab("operations")
+									}}
+								>
+									Open operations
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => {
+										setActiveTab("timeline")
+									}}
+								>
+									Open timeline
+								</DropdownMenuItem>
+								{canViewLive && detail.vehicle ? (
+									<DropdownMenuItem
+										onSelect={() => {
+											setActiveTab("live")
+										}}
+									>
+										Open live view
+									</DropdownMenuItem>
+								) : null}
+							</DropdownMenuContent>
+						</DropdownMenu>
+
+						{primaryAction?.label ? (
+							<Button
+								type="button"
+								onClick={handlePrimaryActionClick}
+								disabled={primaryAction.disabled}
+							>
+								{primaryAction.label}
+							</Button>
+						) : null}
+					</div>
 				</div>
 			</div>
+
+			<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+				<SummaryStat
+					label="Balance due"
+					value={formatCurrency(
+						detail.financials.balanceDue,
+						detail.rental.currency,
+					)}
+					subtitle="This includes unpaid schedule items and open extra charges."
+				/>
+				<SummaryStat
+					label="Deposit held"
+					value={formatCurrency(
+						detail.financials.depositHeld,
+						detail.rental.currency,
+					)}
+					subtitle={`Required deposit ${formatCurrency(detail.deposit.amount, detail.rental.currency)}`}
+				/>
+				<SummaryStat
+					label="Planned window"
+					value={formatDateTime(detail.rental.plannedStartAt)}
+					subtitle={formatDateTime(detail.rental.plannedEndAt)}
+				/>
+				<SummaryStat
+					label="Actual window"
+					value={formatDateTime(detail.rental.actualStartAt)}
+					subtitle={formatDateTime(detail.rental.actualEndAt)}
+				/>
+			</div>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>What needs attention</CardTitle>
+					<CardDescription>
+						These short notes explain the current state in plain language.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="grid gap-3 md:grid-cols-2">
+					{attentionMessages.map((message) => (
+						<div key={message} className="rounded-2xl border bg-muted/20 p-4">
+							<p className="text-sm font-medium">{message}</p>
+						</div>
+					))}
+				</CardContent>
+			</Card>
 
 			<Tabs
 				value={activeTab}
@@ -651,273 +809,459 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 				</TabsList>
 
 				<TabsContent value="overview" className="space-y-4">
-					<div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+					<div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+						<Card>
+							<CardHeader>
+								<CardTitle>Next step</CardTitle>
+								<CardDescription>
+									This is the clearest path forward for the team right now.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="rounded-2xl border bg-muted/20 p-4">
+									<p className="text-sm font-medium">
+										{primaryAction?.description}
+									</p>
+									<p className="text-muted-foreground mt-1 text-sm">
+										Use the main action button when you are ready, or open the
+										relevant tab to review more details first.
+									</p>
+								</div>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => {
+											setActiveTab("billing")
+										}}
+									>
+										Review billing
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => {
+											setActiveTab("operations")
+										}}
+									>
+										Review operations
+									</Button>
+								</div>
+								<div className="grid gap-3 md:grid-cols-2">
+									<DetailPair
+										label="Agreement"
+										value={
+											detail.agreement?.signedAt
+												? `Signed ${formatDateTime(detail.agreement.signedAt)}`
+												: "Agreement still needs final confirmation."
+										}
+										hint="Finalize the rental when agreement details are ready."
+									/>
+									<DetailPair
+										label="Next payment moment"
+										value={
+											detail.paymentSchedule[0]
+												? `${detail.paymentSchedule[0].label} • ${formatDateTime(detail.paymentSchedule[0].dueAt)}`
+												: "No payment schedule yet."
+										}
+										hint="Use the billing tab to collect or prepare payment."
+									/>
+								</div>
+							</CardContent>
+						</Card>
+
 						<Card>
 							<CardHeader>
 								<CardTitle>Booking summary</CardTitle>
 								<CardDescription>
-									Current booking, agreement, and payment-plan state.
+									Core timing, branch, and plan details in one quick view.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="grid gap-4 md:grid-cols-2">
-								<div className="rounded-lg border p-4">
-									<p className="text-muted-foreground text-xs">Customer</p>
-									<p className="mt-1 font-medium">
-										{detail.customer?.fullName ?? "Not set"}
-									</p>
-									<p className="text-muted-foreground mt-1 text-xs">
-										{detail.customer?.email ?? detail.customer?.phone ?? "-"}
-									</p>
-								</div>
-								<div className="rounded-lg border p-4">
-									<p className="text-muted-foreground text-xs">Vehicle</p>
-									<p className="mt-1 font-medium">
-										{detail.vehicle?.label ?? "Not set"}
-									</p>
-									<p className="text-muted-foreground mt-1 text-xs">
-										{detail.vehicle?.licensePlate ?? "-"}
-									</p>
-									{detail.vehicle ? (
-										<Link
-											href={routes.app.vehicleDetails(detail.vehicle.id)}
-											className="mt-2 inline-block text-xs underline"
-										>
-											Open vehicle
-										</Link>
-									) : null}
-								</div>
-								<div className="rounded-lg border p-4">
-									<p className="text-muted-foreground text-xs">Agreement</p>
-									<p className="mt-1 font-medium">
-										{detail.agreement?.signedAt
-											? `Signed ${formatDateTime(detail.agreement.signedAt)}`
-											: "Pending agreement"}
-									</p>
-								</div>
-								<div className="rounded-lg border p-4">
-									<p className="text-muted-foreground text-xs">Plan</p>
-									<p className="mt-1 font-medium capitalize">
-										{detail.rental.paymentPlanKind}
-									</p>
-									<p className="text-muted-foreground mt-1 text-xs capitalize">
-										{detail.rental.firstCollectionTiming.replaceAll("_", " ")}
-										{detail.rental.selectedPaymentMethodType
-											? ` • ${detail.rental.selectedPaymentMethodType.replaceAll("_", " ")}`
-											: ""}
-									</p>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle>Operational state</CardTitle>
-								<CardDescription>
-									Readiness flags for the next rental actions.
-								</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="rounded-lg border p-4">
-									<p className="text-sm font-medium">
-										Pickup inspection{" "}
-										{detail.actionState.missingPickupInspection
-											? "missing"
-											: "recorded"}
-									</p>
-									<p className="text-muted-foreground mt-1 text-xs">
-										Handover is enabled once pickup inspection is saved.
-									</p>
-								</div>
-								<div className="rounded-lg border p-4">
-									<p className="text-sm font-medium">
-										{detail.extraCharges.length} extra charges
-									</p>
-									<p className="text-muted-foreground mt-1 text-xs">
-										{detail.actionState.hasOpenExtraCharges
-											? "There are open post-booking charges."
-											: "No open post-booking charges."}
-									</p>
-								</div>
-								<div className="rounded-lg border p-4">
-									<p className="text-sm font-medium">
-										{detail.inspections.length} inspections,{" "}
-										{detail.damages.length} damages
-									</p>
-									<p className="text-muted-foreground mt-1 text-xs">
-										Track pickup and return condition evidence here.
-									</p>
-								</div>
+							<CardContent className="grid gap-3">
+								<DetailPair
+									label="Branch"
+									value={detail.branch?.name ?? "No branch selected"}
+								/>
+								<DetailPair
+									label="Plan"
+									value={getRentalPlanLabel(detail.rental.paymentPlanKind)}
+									hint={`First collection ${detail.rental.firstCollectionTiming.replaceAll("_", " ")}${detail.rental.selectedPaymentMethodType ? ` • ${detail.rental.selectedPaymentMethodType.replaceAll("_", " ")}` : ""}`}
+								/>
+								<DetailPair
+									label="Created"
+									value={formatDateTime(detail.rental.createdAt)}
+									hint={`Updated ${formatDateTime(detail.rental.updatedAt)}`}
+								/>
 							</CardContent>
 						</Card>
 					</div>
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Pricing snapshot</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{detail.pricingSnapshot ? (
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead>Line item</TableHead>
-											<TableHead>Type</TableHead>
-											<TableHead className="text-right">Amount</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{detail.pricingSnapshot.lineItems.map((item) => (
-											<TableRow key={`${item.code}-${item.label}`}>
-												<TableCell>{item.label}</TableCell>
-												<TableCell className="capitalize">
-													{item.type}
-												</TableCell>
-												<TableCell className="text-right">
-													{formatCurrency(item.amount, detail.rental.currency)}
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							) : (
-								<SectionEmpty message="No pricing snapshot available yet." />
-							)}
-						</CardContent>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="billing" className="space-y-4">
-					<div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+					<div className="grid gap-4 xl:grid-cols-2">
 						<Card>
 							<CardHeader>
-								<CardTitle>Billing actions</CardTitle>
+								<CardTitle>Vehicle and customer</CardTitle>
 								<CardDescription>
-									Prepare schedule collection, cash settlement, and direct
-									debit.
+									Use this section when staff need a quick identity check.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-2 md:grid-cols-3">
-									<Button
-										type="button"
-										variant={
-											paymentMethodType === "cash" ? "default" : "outline"
-										}
-										onClick={() => {
-											setPaymentMethodType("cash")
-										}}
-									>
-										Cash
-									</Button>
-									<Button
-										type="button"
-										variant={
-											paymentMethodType === "card" ? "default" : "outline"
-										}
-										onClick={() => {
-											setPaymentMethodType("card")
-										}}
-									>
-										Card / terminal
-									</Button>
-									<Button
-										type="button"
-										variant={
-											paymentMethodType === "au_becs_debit"
-												? "default"
-												: "outline"
-										}
-										onClick={() => {
-											setPaymentMethodType("au_becs_debit")
-										}}
-									>
-										Direct debit
-									</Button>
-								</div>
-
-								<select
-									className="h-11 rounded-md border px-3"
-									value={selectedScheduleId}
-									onChange={(event) => {
-										setSelectedScheduleId(event.target.value)
-									}}
-								>
-									<option value="">Select schedule</option>
-									{detail.paymentSchedule.map((row) => (
-										<option key={row.id} value={row.id}>
-											{row.label} • {formatCurrency(row.amount, row.currency)} •{" "}
-											{row.status}
-										</option>
-									))}
-								</select>
-
-								<div className="flex flex-wrap gap-2">
-									<Button
-										type="button"
-										onClick={() => {
-											void handlePreparePayment()
-										}}
-										disabled={
-											!canManagePayments || preparePaymentMutation.isPending
-										}
-									>
-										{preparePaymentMutation.isPending
-											? "Preparing..."
-											: "Prepare payment"}
-									</Button>
-									{paymentMethodType === "cash" ? (
-										<>
-											<Input
-												value={amountTendered}
-												onChange={(event) => {
-													setAmountTendered(event.target.value)
-												}}
-												className="max-w-[220px]"
-												placeholder="Amount tendered"
-											/>
-											<Button
-												type="button"
-												variant="outline"
-												onClick={() => {
-													void handleCollectCash()
-												}}
-												disabled={
-													!canManagePayments || collectCashMutation.isPending
-												}
-											>
-												Collect cash
-											</Button>
-										</>
-									) : null}
-								</div>
-
-								{paymentMethodType === "card" ? (
-									<RentalPaymentTerminalPanel
-										rentalId={rentalId}
-										payments={detail.payments}
-									/>
-								) : null}
-
-								{paymentSession?.paymentMethodType === "au_becs_debit" &&
-								detail.customer ? (
-									<RentalPaymentAuBecsForm
-										rentalId={rentalId}
-										paymentSession={paymentSession}
-										customerName={detail.customer.fullName}
-										customerEmail={detail.customer.email ?? ""}
-										onConfirmed={() => {
-											void rentalDetailQuery.refetch()
-										}}
-									/>
+							<CardContent className="grid gap-3 md:grid-cols-2">
+								<DetailPair
+									label="Customer"
+									value={detail.customer?.fullName ?? "Customer not set"}
+									hint={detail.customer?.email ?? detail.customer?.phone ?? "-"}
+								/>
+								<DetailPair
+									label="Vehicle"
+									value={detail.vehicle?.label ?? "Vehicle not set"}
+									hint={detail.vehicle?.licensePlate ?? "-"}
+								/>
+								{detail.vehicle ? (
+									<div className="md:col-span-2">
+										<Link
+											href={routes.app.vehicleDetails(detail.vehicle.id)}
+											className="text-sm font-medium underline underline-offset-4"
+										>
+											Open vehicle details
+										</Link>
+									</div>
 								) : null}
 							</CardContent>
 						</Card>
 
 						<Card>
 							<CardHeader>
-								<CardTitle>Deposit ledger</CardTitle>
+								<CardTitle>Payment summary</CardTitle>
 								<CardDescription>
-									Release, retain, refund, or apply deposit against charges.
+									These numbers help staff understand what is already settled
+									and what is still open.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="grid gap-3 md:grid-cols-2">
+								<DetailPair
+									label="Completed payments"
+									value={String(paymentSummary.completedPayments)}
+									hint="Successful payment records linked to this rental."
+								/>
+								<DetailPair
+									label="Pending schedule items"
+									value={String(paymentSummary.pendingSchedules)}
+									hint="These items still need collection or follow-up."
+								/>
+								<DetailPair
+									label="Extra charges"
+									value={String(detail.extraCharges.length)}
+									hint={
+										detail.actionState.hasOpenExtraCharges
+											? "Some extra charges are still open."
+											: "No extra charges are waiting right now."
+									}
+								/>
+								<DetailPair
+									label="Deposit status"
+									value={formatCurrency(
+										detail.financials.depositHeld,
+										detail.rental.currency,
+									)}
+									hint="Deposit actions stay in the billing tab."
+								/>
+							</CardContent>
+						</Card>
+					</div>
+
+					<div className="grid gap-4 xl:grid-cols-2">
+						<Card>
+							<CardHeader>
+								<CardTitle>Condition summary</CardTitle>
+								<CardDescription>
+									A quick read on inspections and damage follow-up.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="grid gap-3 md:grid-cols-2">
+								<DetailPair
+									label="Pickup inspection"
+									value={
+										detail.actionState.missingPickupInspection
+											? "Still missing"
+											: "Recorded"
+									}
+									hint="Pickup checks should be complete before handover."
+								/>
+								<DetailPair
+									label="All inspections"
+									value={String(detail.inspections.length)}
+									hint="Pickup and return inspections are both tracked here."
+								/>
+								<DetailPair
+									label="Damage items"
+									value={String(detail.damages.length)}
+									hint="Damage records help explain follow-up charges and deposit decisions."
+								/>
+								<DetailPair
+									label="Return readiness"
+									value={
+										detail.actionState.canCloseRental
+											? "Rental can be closed when the team is ready."
+											: "There is still work to finish before closing."
+									}
+								/>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle>Pricing snapshot</CardTitle>
+								<CardDescription>
+									This shows the latest pricing breakdown saved for the rental.
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								{detail.pricingSnapshot ? (
+									<Table>
+										<TableHeader>
+											<TableRow>
+												<TableHead>Line item</TableHead>
+												<TableHead>Type</TableHead>
+												<TableHead className="text-right">Amount</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{detail.pricingSnapshot.lineItems.map((item) => (
+												<TableRow key={`${item.code}-${item.label}`}>
+													<TableCell>{item.label}</TableCell>
+													<TableCell className="capitalize">
+														{item.type}
+													</TableCell>
+													<TableCell className="text-right">
+														{formatCurrency(
+															item.amount,
+															detail.rental.currency,
+														)}
+													</TableCell>
+												</TableRow>
+											))}
+										</TableBody>
+									</Table>
+								) : (
+									<SectionEmpty message="No pricing snapshot is available yet." />
+								)}
+							</CardContent>
+						</Card>
+					</div>
+				</TabsContent>
+
+				<TabsContent value="billing" className="space-y-4">
+					<Card>
+						<CardHeader>
+							<CardTitle>Billing workflow</CardTitle>
+							<CardDescription>
+								Open one billing task at a time so the team can stay focused.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="flex flex-wrap gap-2">
+							<PanelToggle
+								value="collect"
+								activeValue={activeBillingPanel}
+								onClick={() => setActiveBillingPanel("collect")}
+							/>
+							<PanelToggle
+								value="deposit"
+								activeValue={activeBillingPanel}
+								onClick={() => setActiveBillingPanel("deposit")}
+							/>
+							<PanelToggle
+								value="charges"
+								activeValue={activeBillingPanel}
+								onClick={() => setActiveBillingPanel("charges")}
+							/>
+							<PanelToggle
+								value="history"
+								activeValue={activeBillingPanel}
+								onClick={() => setActiveBillingPanel("history")}
+							/>
+						</CardContent>
+					</Card>
+
+					{activeBillingPanel === "collect" ? (
+						<div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+							<Card>
+								<CardHeader>
+									<CardTitle>Collect scheduled payment</CardTitle>
+									<CardDescription>
+										Choose the schedule row and collection method that matches
+										the current payment moment.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="grid gap-2 md:grid-cols-3">
+										<Button
+											type="button"
+											variant={
+												paymentMethodType === "cash" ? "default" : "outline"
+											}
+											onClick={() => {
+												setPaymentMethodType("cash")
+											}}
+										>
+											Cash
+										</Button>
+										<Button
+											type="button"
+											variant={
+												paymentMethodType === "card" ? "default" : "outline"
+											}
+											onClick={() => {
+												setPaymentMethodType("card")
+											}}
+										>
+											Card / terminal
+										</Button>
+										<Button
+											type="button"
+											variant={
+												paymentMethodType === "au_becs_debit"
+													? "default"
+													: "outline"
+											}
+											onClick={() => {
+												setPaymentMethodType("au_becs_debit")
+											}}
+										>
+											Direct debit
+										</Button>
+									</div>
+
+									<select
+										className="h-11 rounded-md border px-3"
+										value={selectedScheduleId}
+										onChange={(event) => {
+											setSelectedScheduleId(event.target.value)
+										}}
+									>
+										<option value="">Select schedule</option>
+										{detail.paymentSchedule.map((row) => (
+											<option key={row.id} value={row.id}>
+												{row.label} • {formatCurrency(row.amount, row.currency)}{" "}
+												• {row.status}
+											</option>
+										))}
+									</select>
+
+									<p className="text-muted-foreground text-sm">
+										Prepare the payment first for card or direct debit. Use cash
+										collection when money is already in hand.
+									</p>
+
+									<div className="flex flex-wrap gap-2">
+										<Button
+											type="button"
+											onClick={() => {
+												void handlePreparePayment()
+											}}
+											disabled={
+												!canManagePayments || preparePaymentMutation.isPending
+											}
+										>
+											{preparePaymentMutation.isPending
+												? "Preparing..."
+												: "Prepare payment"}
+										</Button>
+										{paymentMethodType === "cash" ? (
+											<>
+												<Input
+													value={scheduleAmountTendered}
+													onChange={(event) => {
+														setScheduleAmountTendered(event.target.value)
+													}}
+													className="max-w-[240px]"
+													placeholder="Amount tendered"
+												/>
+												<Button
+													type="button"
+													variant="outline"
+													onClick={() => {
+														void handleCollectCash()
+													}}
+													disabled={
+														!canManagePayments || collectCashMutation.isPending
+													}
+												>
+													Collect cash
+												</Button>
+											</>
+										) : null}
+									</div>
+
+									{paymentMethodType === "card" ? (
+										<RentalPaymentTerminalPanel
+											rentalId={rentalId}
+											payments={detail.payments}
+										/>
+									) : null}
+
+									{paymentSession?.paymentMethodType === "au_becs_debit" &&
+									detail.customer ? (
+										<RentalPaymentAuBecsForm
+											rentalId={rentalId}
+											paymentSession={paymentSession}
+											customerName={detail.customer.fullName}
+											customerEmail={detail.customer.email ?? ""}
+											onConfirmed={() => {
+												void rentalDetailQuery.refetch()
+											}}
+										/>
+									) : null}
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle>Billing summary</CardTitle>
+									<CardDescription>
+										Use these numbers to check whether the rental is financially
+										ready for the next step.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="grid gap-3">
+									<DetailPair
+										label="Invoice total"
+										value={formatCurrency(
+											detail.financials.invoiceTotal,
+											detail.rental.currency,
+										)}
+									/>
+									<DetailPair
+										label="Scheduled outstanding"
+										value={formatCurrency(
+											detail.financials.scheduledOutstanding,
+											detail.rental.currency,
+										)}
+									/>
+									<DetailPair
+										label="Extra charge balance"
+										value={formatCurrency(
+											detail.financials.extraChargesOutstanding,
+											detail.rental.currency,
+										)}
+									/>
+									<DetailPair
+										label="Total paid"
+										value={formatCurrency(
+											detail.financials.totalPaid,
+											detail.rental.currency,
+										)}
+									/>
+								</CardContent>
+							</Card>
+						</div>
+					) : null}
+
+					{activeBillingPanel === "deposit" ? (
+						<Card>
+							<CardHeader>
+								<CardTitle>Deposit workflow</CardTitle>
+								<CardDescription>
+									Release, refund, retain, or apply the deposit with a clear
+									internal note.
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -996,7 +1340,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 									onChange={(event) => {
 										setDepositNote(event.target.value)
 									}}
-									placeholder="Internal note"
+									placeholder="Explain why this deposit action is being taken"
 								/>
 								<Button
 									type="button"
@@ -1011,6 +1355,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 										? "Saving..."
 										: "Update deposit"}
 								</Button>
+
 								<Table>
 									<TableHeader>
 										<TableRow>
@@ -1043,299 +1388,382 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 								</Table>
 							</CardContent>
 						</Card>
-					</div>
+					) : null}
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Schedule and payments</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Schedule</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead>Due</TableHead>
-										<TableHead className="text-right">Amount</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{detail.paymentSchedule.map((row) => (
-										<TableRow key={row.id}>
-											<TableCell>{row.label}</TableCell>
-											<TableCell>{row.status.replaceAll("_", " ")}</TableCell>
-											<TableCell>{formatDateTime(row.dueAt)}</TableCell>
-											<TableCell className="text-right">
-												{formatCurrency(row.amount, row.currency)}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+					{activeBillingPanel === "charges" ? (
+						<Card>
+							<CardHeader>
+								<CardTitle>Extra charges</CardTitle>
+								<CardDescription>
+									Add and collect charges with clear descriptions so the team
+									understands why they exist.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid gap-3 md:grid-cols-4">
+									<select
+										className="h-11 rounded-md border px-3"
+										value={newChargeKind}
+										onChange={(event) => {
+											setNewChargeKind(event.target.value as RentalChargeKind)
+										}}
+									>
+										<option value="damage">Damage</option>
+										<option value="fine">Fine</option>
+										<option value="toll">Toll</option>
+										<option value="fuel">Fuel</option>
+										<option value="cleaning">Cleaning</option>
+										<option value="late_return">Late return</option>
+										<option value="other">Other</option>
+									</select>
+									<Input
+										value={newChargeAmount}
+										onChange={(event) => {
+											setNewChargeAmount(event.target.value)
+										}}
+										placeholder="Base amount"
+									/>
+									<Input
+										value={newChargeTaxAmount}
+										onChange={(event) => {
+											setNewChargeTaxAmount(event.target.value)
+										}}
+										placeholder="Tax amount"
+									/>
+									<Button
+										type="button"
+										onClick={() => {
+											void handleCreateCharge()
+										}}
+										disabled={
+											!canManagePayments || createChargeMutation.isPending
+										}
+									>
+										{createChargeMutation.isPending
+											? "Adding..."
+											: "Add charge"}
+									</Button>
+								</div>
+								<Textarea
+									value={newChargeDescription}
+									onChange={(event) => {
+										setNewChargeDescription(event.target.value)
+									}}
+									placeholder="Write a short explanation for staff and finance records"
+								/>
 
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Payment</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead>Method</TableHead>
-										<TableHead className="text-right">Amount</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{detail.payments.length === 0 ? (
+								<Table>
+									<TableHeader>
 										<TableRow>
-											<TableCell colSpan={4}>
-												No payments recorded yet.
-											</TableCell>
+											<TableHead>Charge</TableHead>
+											<TableHead>Status</TableHead>
+											<TableHead>Due</TableHead>
+											<TableHead className="text-right">Total</TableHead>
+											<TableHead className="text-right">Actions</TableHead>
 										</TableRow>
-									) : (
-										detail.payments.map((payment) => (
-											<TableRow key={payment.id}>
-												<TableCell>
-													<div className="space-y-1">
-														<p className="font-medium">
-															{payment.id.slice(0, 8)}
-														</p>
-														<p className="text-muted-foreground text-xs">
-															{payment.kind.replaceAll("_", " ")}
-														</p>
-													</div>
-												</TableCell>
-												<TableCell>
-													<Badge
-														variant="outline"
-														className={paymentStatusBadgeClass(payment.status)}
-													>
-														{payment.status.replaceAll("_", " ")}
-													</Badge>
-												</TableCell>
-												<TableCell>
-													{payment.paymentMethodType ?? "-"} /{" "}
-													{payment.collectionSurface ?? "-"}
-												</TableCell>
+									</TableHeader>
+									<TableBody>
+										{detail.extraCharges.length === 0 ? (
+											<TableRow>
+												<TableCell colSpan={5}>No extra charges yet.</TableCell>
+											</TableRow>
+										) : (
+											detail.extraCharges.map((charge) => (
+												<TableRow key={charge.id}>
+													<TableCell>
+														<div className="space-y-1">
+															<p className="font-medium capitalize">
+																{charge.kind}
+															</p>
+															<p className="text-muted-foreground text-xs">
+																{charge.description ?? "-"}
+															</p>
+														</div>
+													</TableCell>
+													<TableCell>
+														<Badge
+															variant="outline"
+															className={chargeStatusBadgeClass(charge.status)}
+														>
+															{charge.status.replaceAll("_", " ")}
+														</Badge>
+													</TableCell>
+													<TableCell>{formatDateTime(charge.dueAt)}</TableCell>
+													<TableCell className="text-right">
+														{formatCurrency(charge.total, charge.currency)}
+													</TableCell>
+													<TableCell className="text-right">
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															onClick={() => {
+																setChargeToCollect(charge)
+																setChargeCollectionMethod("cash")
+																setChargeAmountTendered("")
+															}}
+															disabled={
+																!canManagePayments ||
+																charge.status === "paid" ||
+																charge.status === "cancelled"
+															}
+														>
+															Collect
+														</Button>
+													</TableCell>
+												</TableRow>
+											))
+										)}
+									</TableBody>
+								</Table>
+							</CardContent>
+						</Card>
+					) : null}
+
+					{activeBillingPanel === "history" ? (
+						<Card>
+							<CardHeader>
+								<CardTitle>Schedule and payment history</CardTitle>
+								<CardDescription>
+									Read past and upcoming financial activity in one place.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Schedule</TableHead>
+											<TableHead>Status</TableHead>
+											<TableHead>Due</TableHead>
+											<TableHead className="text-right">Amount</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{detail.paymentSchedule.map((row) => (
+											<TableRow key={row.id}>
+												<TableCell>{row.label}</TableCell>
+												<TableCell>{row.status.replaceAll("_", " ")}</TableCell>
+												<TableCell>{formatDateTime(row.dueAt)}</TableCell>
 												<TableCell className="text-right">
-													{formatCurrency(payment.amount, payment.currency)}
+													{formatCurrency(row.amount, row.currency)}
 												</TableCell>
 											</TableRow>
-										))
-									)}
-								</TableBody>
-							</Table>
-						</CardContent>
-					</Card>
+										))}
+									</TableBody>
+								</Table>
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Extra charges</CardTitle>
-							<CardDescription>
-								Add damages, fines, tolls, fuel, cleaning, and late-return
-								charges.
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid gap-3 md:grid-cols-4">
-								<select
-									className="h-11 rounded-md border px-3"
-									value={newChargeKind}
-									onChange={(event) => {
-										setNewChargeKind(event.target.value as RentalChargeKind)
-									}}
-								>
-									<option value="damage">Damage</option>
-									<option value="fine">Fine</option>
-									<option value="toll">Toll</option>
-									<option value="fuel">Fuel</option>
-									<option value="cleaning">Cleaning</option>
-									<option value="late_return">Late return</option>
-									<option value="other">Other</option>
-								</select>
-								<Input
-									value={newChargeAmount}
-									onChange={(event) => {
-										setNewChargeAmount(event.target.value)
-									}}
-									placeholder="Base amount"
-								/>
-								<Input
-									value={newChargeTaxAmount}
-									onChange={(event) => {
-										setNewChargeTaxAmount(event.target.value)
-									}}
-									placeholder="Tax amount"
-								/>
-								<Button
-									type="button"
-									onClick={() => {
-										void handleCreateCharge()
-									}}
-									disabled={
-										!canManagePayments || createChargeMutation.isPending
-									}
-								>
-									{createChargeMutation.isPending ? "Adding..." : "Add charge"}
-								</Button>
-							</div>
-							<Textarea
-								value={newChargeDescription}
-								onChange={(event) => {
-									setNewChargeDescription(event.target.value)
-								}}
-								placeholder="Charge description"
-							/>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Charge</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead>Due</TableHead>
-										<TableHead className="text-right">Total</TableHead>
-										<TableHead className="text-right">Actions</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{detail.extraCharges.length === 0 ? (
+								<Table>
+									<TableHeader>
 										<TableRow>
-											<TableCell colSpan={5}>No extra charges yet.</TableCell>
+											<TableHead>Payment</TableHead>
+											<TableHead>Status</TableHead>
+											<TableHead>Method</TableHead>
+											<TableHead className="text-right">Amount</TableHead>
 										</TableRow>
-									) : (
-										detail.extraCharges.map((charge) => (
-											<TableRow key={charge.id}>
-												<TableCell>
-													<div className="space-y-1">
-														<p className="font-medium capitalize">
-															{charge.kind}
-														</p>
-														<p className="text-muted-foreground text-xs">
-															{charge.description ?? "-"}
-														</p>
-													</div>
-												</TableCell>
-												<TableCell>
-													<Badge
-														variant="outline"
-														className={chargeStatusBadgeClass(charge.status)}
-													>
-														{charge.status.replaceAll("_", " ")}
-													</Badge>
-												</TableCell>
-												<TableCell>{formatDateTime(charge.dueAt)}</TableCell>
-												<TableCell className="text-right">
-													{formatCurrency(charge.total, charge.currency)}
-												</TableCell>
-												<TableCell className="text-right">
-													<Button
-														type="button"
-														variant="outline"
-														size="sm"
-														onClick={() => {
-															void handleCollectCharge(charge.id)
-														}}
-														disabled={
-															!canManagePayments ||
-															charge.status === "paid" ||
-															charge.status === "cancelled"
-														}
-													>
-														Collect
-													</Button>
+									</TableHeader>
+									<TableBody>
+										{detail.payments.length === 0 ? (
+											<TableRow>
+												<TableCell colSpan={4}>
+													No payments recorded yet.
 												</TableCell>
 											</TableRow>
-										))
-									)}
-								</TableBody>
-							</Table>
-						</CardContent>
-					</Card>
+										) : (
+											detail.payments.map((payment) => (
+												<TableRow key={payment.id}>
+													<TableCell>
+														<div className="space-y-1">
+															<p className="font-medium">
+																{payment.id.slice(0, 8)}
+															</p>
+															<p className="text-muted-foreground text-xs">
+																{payment.kind.replaceAll("_", " ")}
+															</p>
+														</div>
+													</TableCell>
+													<TableCell>
+														<Badge
+															variant="outline"
+															className={paymentStatusBadgeClass(
+																payment.status,
+															)}
+														>
+															{payment.status.replaceAll("_", " ")}
+														</Badge>
+													</TableCell>
+													<TableCell>
+														{payment.paymentMethodType ?? "-"} /{" "}
+														{payment.collectionSurface ?? "-"}
+													</TableCell>
+													<TableCell className="text-right">
+														{formatCurrency(payment.amount, payment.currency)}
+													</TableCell>
+												</TableRow>
+											))
+										)}
+									</TableBody>
+								</Table>
+							</CardContent>
+						</Card>
+					) : null}
 				</TabsContent>
 
 				<TabsContent value="operations" className="space-y-4">
-					<div className="grid gap-4 xl:grid-cols-2">
-						<Card>
-							<CardHeader>
-								<CardTitle>Pickup workflow</CardTitle>
-								<CardDescription>
-									Capture handover condition before activation.
-								</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="grid gap-3 md:grid-cols-2">
-									<Input
-										value={pickupOdometer}
-										onChange={(event) => {
-											setPickupOdometer(event.target.value)
-										}}
-										placeholder="Odometer km"
-									/>
-									<Input
-										value={pickupFuelPercent}
-										onChange={(event) => {
-											setPickupFuelPercent(event.target.value)
-										}}
-										placeholder="Fuel %"
-									/>
-								</div>
-								<Textarea
-									value={pickupNotes}
-									onChange={(event) => {
-										setPickupNotes(event.target.value)
-									}}
-									placeholder="Pickup notes"
-								/>
-								<div className="grid gap-3 md:grid-cols-3">
-									<select
-										className="h-11 rounded-md border px-3"
-										value={pickupDamageCategory}
-										onChange={(event) => {
-											setPickupDamageCategory(
-												event.target.value as RentalDamageCategory,
-											)
-										}}
-									>
-										<option value="exterior">Exterior damage</option>
-										<option value="interior">Interior damage</option>
-										<option value="mechanical">Mechanical issue</option>
-										<option value="other">Other</option>
-									</select>
-									<select
-										className="h-11 rounded-md border px-3"
-										value={pickupDamageSeverity}
-										onChange={(event) => {
-											setPickupDamageSeverity(
-												event.target.value as RentalDamageSeverity,
-											)
-										}}
-									>
-										<option value="minor">Minor</option>
-										<option value="moderate">Moderate</option>
-										<option value="severe">Severe</option>
-									</select>
-									<Input
-										value={pickupDamageTitle}
-										onChange={(event) => {
-											setPickupDamageTitle(event.target.value)
-										}}
-										placeholder="Optional damage note"
-									/>
-								</div>
-								<Button
-									type="button"
-									onClick={() => {
-										void handleSaveInspection("pickup")
-									}}
-									disabled={inspectionMutation.isPending}
-								>
-									Save pickup inspection
-								</Button>
-							</CardContent>
-						</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle>Operations workflow</CardTitle>
+							<CardDescription>
+								Open only the stage you are working on so the handover and
+								return process stays easy to follow.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="flex flex-wrap gap-2">
+							<PanelToggle
+								value="pickup"
+								activeValue={activeOperationsPanel}
+								onClick={() => setActiveOperationsPanel("pickup")}
+							/>
+							<PanelToggle
+								value="extend"
+								activeValue={activeOperationsPanel}
+								onClick={() => setActiveOperationsPanel("extend")}
+							/>
+							<PanelToggle
+								value="return"
+								activeValue={activeOperationsPanel}
+								onClick={() => setActiveOperationsPanel("return")}
+							/>
+						</CardContent>
+					</Card>
 
+					{activeOperationsPanel === "pickup" ? (
+						<div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+							<Card>
+								<CardHeader>
+									<CardTitle>Pickup inspection</CardTitle>
+									<CardDescription>
+										Capture vehicle condition before the customer leaves with
+										the vehicle.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									<div className="grid gap-3 md:grid-cols-2">
+										<Input
+											value={pickupOdometer}
+											onChange={(event) => {
+												setPickupOdometer(event.target.value)
+											}}
+											placeholder="Odometer km"
+										/>
+										<Input
+											value={pickupFuelPercent}
+											onChange={(event) => {
+												setPickupFuelPercent(event.target.value)
+											}}
+											placeholder="Fuel %"
+										/>
+									</div>
+									<Textarea
+										value={pickupNotes}
+										onChange={(event) => {
+											setPickupNotes(event.target.value)
+										}}
+										placeholder="Pickup notes"
+									/>
+									<div className="grid gap-3 md:grid-cols-3">
+										<select
+											className="h-11 rounded-md border px-3"
+											value={pickupDamageCategory}
+											onChange={(event) => {
+												setPickupDamageCategory(
+													event.target.value as RentalDamageCategory,
+												)
+											}}
+										>
+											<option value="exterior">Exterior damage</option>
+											<option value="interior">Interior damage</option>
+											<option value="mechanical">Mechanical issue</option>
+											<option value="other">Other</option>
+										</select>
+										<select
+											className="h-11 rounded-md border px-3"
+											value={pickupDamageSeverity}
+											onChange={(event) => {
+												setPickupDamageSeverity(
+													event.target.value as RentalDamageSeverity,
+												)
+											}}
+										>
+											<option value="minor">Minor</option>
+											<option value="moderate">Moderate</option>
+											<option value="severe">Severe</option>
+										</select>
+										<Input
+											value={pickupDamageTitle}
+											onChange={(event) => {
+												setPickupDamageTitle(event.target.value)
+											}}
+											placeholder="Optional damage note"
+										/>
+									</div>
+									<Button
+										type="button"
+										onClick={() => {
+											void handleSaveInspection()
+										}}
+										disabled={inspectionMutation.isPending}
+									>
+										Save pickup inspection
+									</Button>
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle>Pickup readiness</CardTitle>
+									<CardDescription>
+										Make sure the team sees whether handover can happen now or
+										if something is still missing.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									<DetailPair
+										label="Inspection status"
+										value={
+											detail.actionState.missingPickupInspection
+												? "Inspection is still missing."
+												: "Inspection is recorded."
+										}
+									/>
+									<DetailPair
+										label="Payment setup"
+										value={
+											detail.rental.selectedPaymentMethodType
+												? `Method selected: ${detail.rental.selectedPaymentMethodType.replaceAll("_", " ")}`
+												: "No payment method selected yet."
+										}
+									/>
+									<Button
+										type="button"
+										onClick={() => {
+											setIsHandoverOpen(true)
+										}}
+										disabled={!detail.actionState.canHandover}
+									>
+										Handover vehicle
+									</Button>
+								</CardContent>
+							</Card>
+						</div>
+					) : null}
+
+					{activeOperationsPanel === "extend" ? (
 						<Card>
 							<CardHeader>
 								<CardTitle>Extend rental</CardTitle>
 								<CardDescription>
-									Update the planned end date and create an extension charge
-									delta.
+									Update the planned return date and record why the change
+									happened.
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-3">
@@ -1366,157 +1794,123 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 								</Button>
 							</CardContent>
 						</Card>
-					</div>
+					) : null}
 
-					<div className="grid gap-4 xl:grid-cols-2">
-						<Card>
-							<CardHeader>
-								<CardTitle>Return inspection</CardTitle>
-								<CardDescription>
-									Capture condition, odometer, fuel, and any return damages.
-								</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="grid gap-3 md:grid-cols-2">
-									<Input
-										value={returnOdometer}
-										onChange={(event) => {
-											setReturnOdometer(event.target.value)
-										}}
-										placeholder="Odometer km"
-									/>
-									<Input
-										value={returnFuelPercent}
-										onChange={(event) => {
-											setReturnFuelPercent(event.target.value)
-										}}
-										placeholder="Fuel %"
-									/>
-								</div>
-								<Textarea
-									value={returnNotes}
-									onChange={(event) => {
-										setReturnNotes(event.target.value)
-									}}
-									placeholder="Return notes"
-								/>
-								<div className="grid gap-3 md:grid-cols-3">
-									<select
-										className="h-11 rounded-md border px-3"
-										value={returnDamageCategory}
-										onChange={(event) => {
-											setReturnDamageCategory(
-												event.target.value as RentalDamageCategory,
-											)
-										}}
-									>
-										<option value="exterior">Exterior damage</option>
-										<option value="interior">Interior damage</option>
-										<option value="mechanical">Mechanical issue</option>
-										<option value="other">Other</option>
-									</select>
-									<select
-										className="h-11 rounded-md border px-3"
-										value={returnDamageSeverity}
-										onChange={(event) => {
-											setReturnDamageSeverity(
-												event.target.value as RentalDamageSeverity,
-											)
-										}}
-									>
-										<option value="minor">Minor</option>
-										<option value="moderate">Moderate</option>
-										<option value="severe">Severe</option>
-									</select>
-									<Input
-										value={returnDamageTitle}
-										onChange={(event) => {
-											setReturnDamageTitle(event.target.value)
-										}}
-										placeholder="Optional damage note"
-									/>
-								</div>
-								<Button
-									type="button"
-									onClick={() => {
-										void handleSaveInspection("return")
-									}}
-									disabled={inspectionMutation.isPending}
-								>
-									Save return inspection
-								</Button>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle>Close rental</CardTitle>
-								<CardDescription>
-									Finalize return after inspections, charges, and deposit
-									resolution.
-								</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<Textarea
-									value={returnCloseNotes}
-									onChange={(event) => {
-										setReturnCloseNotes(event.target.value)
-									}}
-									placeholder="Completion notes"
-								/>
-								<Button
-									type="button"
-									onClick={() => {
-										void handleReturn()
-									}}
-									disabled={
-										!detail.actionState.canCloseRental ||
-										returnMutation.isPending
-									}
-								>
-									{returnMutation.isPending ? "Closing..." : "Close rental"}
-								</Button>
-								<div className="rounded-lg border p-4 text-sm">
-									<p className="font-medium">Finalize agreement</p>
-									<p className="text-muted-foreground mt-1 text-xs">
-										If the rental is still draft/awaiting payment, finalize
-										here.
-									</p>
-									<div className="mt-3 grid gap-3">
-										<Input
-											value={signerName}
-											onChange={(event) => {
-												setSignerName(event.target.value)
-											}}
-											placeholder="Signer name"
-										/>
-										<Textarea
-											value={signature}
-											onChange={(event) => {
-												setSignature(event.target.value)
-											}}
-											placeholder="Signature payload"
-										/>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => {
-												void handleFinalize()
-											}}
-											disabled={
-												!detail.actionState.canFinalize ||
-												finalizeMutation.isPending
+					{activeOperationsPanel === "return" ? (
+						<div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+							<Card>
+								<CardHeader>
+									<CardTitle>Vehicle return flow</CardTitle>
+									<CardDescription>
+										Use one guided drawer to capture condition photos, add
+										damage or extra charges, collect the balance, and finish the
+										return.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									<div className="grid gap-3 md:grid-cols-2">
+										<DetailPair
+											label="Inspection"
+											value={
+												detail.actionState.hasReturnInspection
+													? "Return inspection saved."
+													: "Return inspection still needs to be captured."
 											}
-										>
-											{finalizeMutation.isPending
-												? "Finalizing..."
-												: "Finalize rental"}
-										</Button>
+											hint="The drawer now handles return photos, notes, and condition evidence together."
+										/>
+										<DetailPair
+											label="Balance due now"
+											value={formatCurrency(
+												detail.financials.balanceDue,
+												detail.deposit.currency,
+											)}
+											hint="This includes unpaid schedule balance and open return-time charges."
+										/>
 									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</div>
+									<div className="grid gap-3 md:grid-cols-2">
+										<DetailPair
+											label="Deposit held"
+											value={formatCurrency(
+												detail.financials.depositHeld,
+												detail.deposit.currency,
+											)}
+											hint={
+												detail.actionState.requiresDepositResolution
+													? "A deposit decision is still required before closeout."
+													: "No deposit action is blocking the return right now."
+											}
+										/>
+										<DetailPair
+											label="Next step"
+											value={
+												detail.actionState.canCompleteReturn
+													? "Review the summary and complete the return."
+													: "Open the guided return flow and finish the remaining items."
+											}
+											hint="The new flow keeps the team focused on one step at a time."
+										/>
+									</div>
+									<Button
+										type="button"
+										onClick={() => {
+											setIsReturnFlowOpen(true)
+										}}
+									>
+										Open return flow
+									</Button>
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle>What still needs attention</CardTitle>
+									<CardDescription>
+										Keep these blockers simple so staff can understand the next
+										move without decoding the system.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									<DetailPair
+										label="Return inspection"
+										value={
+											detail.actionState.hasReturnInspection
+												? "Captured"
+												: "Still missing"
+										}
+									/>
+									<DetailPair
+										label="Scheduled balance"
+										value={
+											detail.actionState.hasOutstandingScheduledBalance
+												? "Still outstanding"
+												: "Settled"
+										}
+									/>
+									<DetailPair
+										label="Extra charges"
+										value={
+											detail.actionState.hasOutstandingExtraCharges
+												? "Still open"
+												: "Settled"
+										}
+									/>
+									<DetailPair
+										label="Deposit"
+										value={
+											detail.actionState.requiresDepositResolution
+												? "Needs a final decision"
+												: "Resolved"
+										}
+									/>
+									<p className="text-muted-foreground text-sm">
+										The return can only be completed after the drawer shows that
+										inspection, balance, and deposit are all in a clear final
+										state.
+									</p>
+								</CardContent>
+							</Card>
+						</div>
+					) : null}
 				</TabsContent>
 
 				<TabsContent value="live">
@@ -1528,7 +1922,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 					) : (
 						<Card>
 							<CardContent>
-								<SectionEmpty message="Live telemetry is only available to privileged fleet users with vehicle access." />
+								<SectionEmpty message="Live telemetry is available only to privileged fleet users who can access this vehicle." />
 							</CardContent>
 						</Card>
 					)}
@@ -1539,45 +1933,251 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 						<CardHeader>
 							<CardTitle>Rental timeline</CardTitle>
 							<CardDescription>
-								Audit trail for booking, inspection, billing, deposit, and
-								return actions.
+								Read the story of the rental first, then open raw payload
+								details only when you need them.
 							</CardDescription>
 						</CardHeader>
-						<CardContent>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Event</TableHead>
-										<TableHead>When</TableHead>
-										<TableHead>Payload</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{detail.timeline.length === 0 ? (
-										<TableRow>
-											<TableCell colSpan={3}>
-												No timeline entries yet.
-											</TableCell>
-										</TableRow>
-									) : (
-										detail.timeline.map((entry) => (
-											<TableRow key={entry.id}>
-												<TableCell>{entry.type}</TableCell>
-												<TableCell>{formatDateTime(entry.createdAt)}</TableCell>
-												<TableCell className="font-mono text-xs">
-													<pre className="whitespace-pre-wrap">
-														{JSON.stringify(entry.payload, null, 2)}
-													</pre>
-												</TableCell>
-											</TableRow>
-										))
-									)}
-								</TableBody>
-							</Table>
+						<CardContent className="space-y-3">
+							{detail.timeline.length === 0 ? (
+								<SectionEmpty message="No timeline entries yet." />
+							) : (
+								detail.timeline.map((entry) => (
+									<div key={entry.id} className="rounded-2xl border p-4">
+										<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+											<div>
+												<p className="font-medium">
+													{formatTimelineLabel(entry.type)}
+												</p>
+												<p className="text-muted-foreground text-sm">
+													{formatDateTime(entry.createdAt)}
+												</p>
+											</div>
+											<p className="text-muted-foreground text-sm">
+												Actor {entry.actorMemberId?.slice(0, 8) ?? "system"}
+											</p>
+										</div>
+										<details className="mt-3 rounded-xl border bg-muted/20 p-3">
+											<summary className="cursor-pointer text-sm font-medium">
+												Show raw details
+											</summary>
+											<pre className="mt-3 whitespace-pre-wrap text-xs">
+												{JSON.stringify(entry.payload, null, 2)}
+											</pre>
+										</details>
+									</div>
+								))
+							)}
 						</CardContent>
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			<ResponsiveDrawer
+				open={isFinalizeOpen}
+				onOpenChange={setIsFinalizeOpen}
+				title="Finalize rental"
+				description="Add the agreement confirmation details before moving this booking forward."
+			>
+				<div className="space-y-4">
+					<Input
+						value={signerName}
+						onChange={(event) => {
+							setSignerName(event.target.value)
+						}}
+						placeholder="Signer name"
+					/>
+					<Textarea
+						value={signature}
+						onChange={(event) => {
+							setSignature(event.target.value)
+						}}
+						placeholder="Signature payload"
+					/>
+					<p className="text-muted-foreground text-sm">
+						This step confirms that the agreement is accepted and the rental is
+						ready for its next stage.
+					</p>
+					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setIsFinalizeOpen(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							onClick={() => {
+								void handleFinalize()
+							}}
+							disabled={
+								!detail.actionState.canFinalize || finalizeMutation.isPending
+							}
+						>
+							{finalizeMutation.isPending ? "Finalizing..." : "Finalize rental"}
+						</Button>
+					</div>
+				</div>
+			</ResponsiveDrawer>
+
+			<ResponsiveDrawer
+				open={isHandoverOpen}
+				onOpenChange={setIsHandoverOpen}
+				title="Handover vehicle"
+				description="Use this step when pickup checks are complete and the customer is ready to leave with the vehicle."
+			>
+				<div className="space-y-4">
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-sm font-medium">
+							Customer: {detail.customer?.fullName ?? "Customer pending"}
+						</p>
+						<p className="text-muted-foreground mt-1 text-sm">
+							Vehicle: {detail.vehicle?.label ?? "Vehicle pending"}
+						</p>
+					</div>
+					{detail.rental.selectedPaymentMethodType === "cash" &&
+					detail.rental.firstCollectionTiming === "handover" ? (
+						<div className="space-y-2">
+							<label className="text-sm font-medium" htmlFor="handover-amount">
+								Cash collected now
+							</label>
+							<Input
+								id="handover-amount"
+								value={handoverAmountTendered}
+								onChange={(event) => {
+									setHandoverAmountTendered(event.target.value)
+								}}
+								placeholder="Amount tendered"
+							/>
+							<p className="text-muted-foreground text-sm">
+								Enter the amount collected at the desk so handover can complete
+								cleanly.
+							</p>
+						</div>
+					) : null}
+					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setIsHandoverOpen(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							onClick={() => {
+								void handleHandover()
+							}}
+							disabled={
+								!detail.actionState.canHandover || handoverMutation.isPending
+							}
+						>
+							{handoverMutation.isPending ? "Saving..." : "Handover vehicle"}
+						</Button>
+					</div>
+				</div>
+			</ResponsiveDrawer>
+
+			<RentalReturnDrawer
+				open={isReturnFlowOpen}
+				onOpenChange={setIsReturnFlowOpen}
+				rentalId={rentalId}
+				detail={detail}
+				onUpdated={async () => {
+					await rentalDetailQuery.refetch()
+				}}
+			/>
+
+			<ResponsiveDrawer
+				open={chargeToCollect !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setChargeToCollect(null)
+						setChargeAmountTendered("")
+					}
+				}}
+				title="Collect charge"
+				description="Choose how the customer is paying this charge and confirm the amount."
+			>
+				{chargeToCollect ? (
+					<div className="space-y-4">
+						<div className="rounded-2xl border bg-muted/20 p-4">
+							<p className="text-sm font-medium capitalize">
+								{chargeToCollect.kind} charge
+							</p>
+							<p className="text-muted-foreground mt-1 text-sm">
+								{chargeToCollect.description ??
+									"No extra description provided."}
+							</p>
+							<p className="mt-2 text-sm font-medium">
+								{formatCurrency(
+									chargeToCollect.total,
+									chargeToCollect.currency,
+								)}
+							</p>
+						</div>
+
+						<div className="grid gap-2 md:grid-cols-2">
+							<Button
+								type="button"
+								variant={
+									chargeCollectionMethod === "cash" ? "default" : "outline"
+								}
+								onClick={() => {
+									setChargeCollectionMethod("cash")
+								}}
+							>
+								Cash
+							</Button>
+							<Button
+								type="button"
+								variant={
+									chargeCollectionMethod === "card" ? "default" : "outline"
+								}
+								onClick={() => {
+									setChargeCollectionMethod("card")
+								}}
+							>
+								Card
+							</Button>
+						</div>
+
+						{chargeCollectionMethod === "cash" ? (
+							<Input
+								value={chargeAmountTendered}
+								onChange={(event) => {
+									setChargeAmountTendered(event.target.value)
+								}}
+								placeholder="Amount tendered"
+							/>
+						) : null}
+
+						<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => {
+									setChargeToCollect(null)
+									setChargeAmountTendered("")
+								}}
+							>
+								Cancel
+							</Button>
+							<Button
+								type="button"
+								onClick={() => {
+									void handleCollectCharge()
+								}}
+								disabled={!canManagePayments || collectChargeMutation.isPending}
+							>
+								{collectChargeMutation.isPending
+									? "Collecting..."
+									: "Collect charge"}
+							</Button>
+						</div>
+					</div>
+				) : null}
+			</ResponsiveDrawer>
 
 			<RentalAppointmentDrawer
 				open={isEditOpen}
