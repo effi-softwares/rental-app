@@ -1,0 +1,208 @@
+import { getViewerMembershipId } from "@/lib/authorization/server"
+import { db } from "@/lib/db"
+import { rentalDamage, rentalInspection } from "@/lib/db/schema/rentals"
+import type { Context } from "@/types"
+import {
+	logRentalEvent,
+	mapRentalDamageRecord,
+	mapRentalInspectionRecord,
+	numericToNumber,
+} from "../../_lib"
+
+function normalizeChecklist(value: unknown) {
+	if (!value || typeof value !== "object") {
+		return {}
+	}
+
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+			key,
+			Boolean(entry),
+		]),
+	)
+}
+
+function normalizeMedia(value: unknown) {
+	if (!Array.isArray(value)) {
+		return []
+	}
+
+	return value
+		.filter((entry) => entry && typeof entry === "object")
+		.map((entry) => {
+			const media = entry as {
+				assetId?: unknown
+				deliveryUrl?: unknown
+				blurDataUrl?: unknown
+				label?: unknown
+			}
+
+			if (
+				typeof media.assetId !== "string" ||
+				typeof media.deliveryUrl !== "string" ||
+				typeof media.blurDataUrl !== "string"
+			) {
+				return null
+			}
+
+			return {
+				assetId: media.assetId,
+				deliveryUrl: media.deliveryUrl,
+				blurDataUrl: media.blurDataUrl,
+				label: typeof media.label === "string" ? media.label : null,
+			}
+		})
+		.filter(
+			(
+				entry,
+			): entry is {
+				assetId: string
+				deliveryUrl: string
+				blurDataUrl: string
+				label: string | null
+			} => Boolean(entry),
+		)
+}
+
+export async function saveRentalInspection(input: {
+	viewer: Context & { activeOrganizationId: string }
+	rentalId: string
+	branchId: string | null
+	stage: "pickup" | "return"
+	payload: {
+		odometerKm?: number | null
+		fuelPercent?: number | null
+		cleanliness?: "clean" | "needs_attention" | "dirty" | null
+		checklist?: Record<string, boolean>
+		notes?: string
+		signature?: string
+		signerName?: string
+		media?: Array<{
+			assetId: string
+			deliveryUrl: string
+			blurDataUrl: string
+			label?: string | null
+		}>
+		damages?: Array<{
+			category: "exterior" | "interior" | "mechanical" | "other"
+			title: string
+			description?: string
+			severity: "minor" | "moderate" | "severe"
+			customerLiabilityAmount?: number
+			estimatedCost?: number | null
+			actualCost?: number | null
+			repairStatus?: "reported" | "approved" | "repaired" | "waived"
+			occurredAt?: string | null
+			media?: Array<{
+				assetId: string
+				deliveryUrl: string
+				blurDataUrl: string
+				label?: string | null
+			}>
+		}>
+	}
+}) {
+	const memberId = await getViewerMembershipId(input.viewer)
+	const [inspection] = await db
+		.insert(rentalInspection)
+		.values({
+			organizationId: input.viewer.activeOrganizationId,
+			branchId: input.branchId,
+			rentalId: input.rentalId,
+			stage: input.stage,
+			odometerKm:
+				typeof input.payload.odometerKm === "number"
+					? input.payload.odometerKm.toFixed(2)
+					: null,
+			fuelPercent:
+				typeof input.payload.fuelPercent === "number"
+					? input.payload.fuelPercent.toFixed(2)
+					: null,
+			cleanliness: input.payload.cleanliness ?? null,
+			checklistJson: normalizeChecklist(input.payload.checklist),
+			notes: input.payload.notes?.trim() || null,
+			signaturePayload: {
+				signerName: input.payload.signerName?.trim() || null,
+				signature: input.payload.signature?.trim() || null,
+			},
+			mediaJson: normalizeMedia(input.payload.media),
+			completedByMemberId: memberId,
+		})
+		.returning()
+
+	const normalizedDamages = (input.payload.damages ?? [])
+		.filter((entry) => entry.title.trim().length > 0)
+		.map((entry) => ({
+			category: entry.category,
+			title: entry.title.trim(),
+			description: entry.description?.trim() || null,
+			severity: entry.severity,
+			customerLiabilityAmount: Math.max(0, entry.customerLiabilityAmount ?? 0),
+			estimatedCost:
+				entry.estimatedCost == null ? null : Math.max(0, entry.estimatedCost),
+			actualCost:
+				entry.actualCost == null ? null : Math.max(0, entry.actualCost),
+			repairStatus: entry.repairStatus ?? "reported",
+			occurredAt:
+				entry.occurredAt && !Number.isNaN(new Date(entry.occurredAt).getTime())
+					? new Date(entry.occurredAt)
+					: null,
+			mediaJson: normalizeMedia(entry.media),
+		}))
+
+	const damageRows =
+		normalizedDamages.length > 0
+			? await db
+					.insert(rentalDamage)
+					.values(
+						normalizedDamages.map((entry) => ({
+							organizationId: input.viewer.activeOrganizationId,
+							branchId: input.branchId,
+							rentalId: input.rentalId,
+							inspectionId: inspection.id,
+							category: entry.category,
+							title: entry.title,
+							description: entry.description,
+							severity: entry.severity,
+							customerLiabilityAmount: entry.customerLiabilityAmount.toFixed(2),
+							estimatedCost:
+								entry.estimatedCost == null
+									? null
+									: entry.estimatedCost.toFixed(2),
+							actualCost:
+								entry.actualCost == null ? null : entry.actualCost.toFixed(2),
+							repairStatus: entry.repairStatus,
+							occurredAt: entry.occurredAt,
+							mediaJson: entry.mediaJson,
+							metadata: {
+								stage: input.stage,
+							},
+						})),
+					)
+					.returning()
+			: []
+
+	await logRentalEvent({
+		viewer: input.viewer,
+		rentalId: input.rentalId,
+		branchId: input.branchId,
+		type: `rental.inspection.${input.stage}.saved`,
+		payload: {
+			inspectionId: inspection.id,
+			odometerKm:
+				inspection.odometerKm === null
+					? null
+					: numericToNumber(inspection.odometerKm),
+			fuelPercent:
+				inspection.fuelPercent === null
+					? null
+					: numericToNumber(inspection.fuelPercent),
+			damageCount: damageRows.length,
+		},
+	})
+
+	return {
+		inspection: mapRentalInspectionRecord(inspection),
+		damages: damageRows.map(mapRentalDamageRecord),
+	}
+}
