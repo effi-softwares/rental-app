@@ -9,6 +9,7 @@ import {
 	rentalInvoice,
 	rentalPayment,
 } from "@/lib/db/schema/rentals"
+import type { vehicle } from "@/lib/db/schema/vehicles"
 import { stripeWebhookEvent } from "@/lib/db/schema/workspace"
 import type { Context } from "@/types"
 import { numericToNumber } from "../rentals/_lib"
@@ -18,6 +19,7 @@ export function buildBranchScopedPredicate(
 		| typeof rental.branchId
 		| typeof rentalPayment.branchId
 		| typeof stripeWebhookEvent.branchId
+		| typeof vehicle.branchId
 		| typeof branch.id,
 	branchIds: string[] | null,
 ) {

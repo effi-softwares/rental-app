@@ -288,7 +288,11 @@ function RentalTransitionMenu({
 	)
 }
 
-export function RentalManagement() {
+type RentalManagementProps = {
+	statusPreset?: string
+}
+
+export function RentalManagement({ statusPreset }: RentalManagementProps) {
 	const authContextQuery = useAuthContextQuery()
 	const activeOrganizationId =
 		authContextQuery.data?.viewer.activeOrganizationId ?? undefined
@@ -296,7 +300,7 @@ export function RentalManagement() {
 		authContextQuery.data?.permissions.managePaymentsModule,
 	)
 
-	const rentalsQuery = useRentalsListQuery(activeOrganizationId)
+	const rentalsQuery = useRentalsListQuery(activeOrganizationId, statusPreset)
 	const handoverMutation = useHandoverRentalMutation(activeOrganizationId)
 	const returnMutation = useReturnRentalMutation(activeOrganizationId)
 

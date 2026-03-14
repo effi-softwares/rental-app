@@ -16,6 +16,7 @@ import {
 	billingAttentionQueryKeys,
 	useBillingAttentionSummaryQuery,
 } from "@/features/billing-attention"
+import { dashboardQueryKeys } from "@/features/dashboard"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import { paymentsQueryKeys } from "@/features/payments"
 import { rentalsQueryKeys } from "@/features/rentals"
@@ -105,6 +106,9 @@ export function WorkspaceLiveProvider({
 
 			if (event.topic === "billing_attention" || event.topic === "rentals") {
 				void queryClient.invalidateQueries({ queryKey: rentalsQueryKeys.all })
+				void queryClient.invalidateQueries({
+					queryKey: dashboardQueryKeys.all,
+				})
 			}
 
 			if (event.attention !== "warning" && event.attention !== "critical") {

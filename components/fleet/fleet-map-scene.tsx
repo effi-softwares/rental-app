@@ -43,6 +43,7 @@ type FleetMapSceneProps = {
 	}
 	emptyTitle?: string
 	emptyDescription?: string
+	chromeStyle?: "elevated" | "flat"
 }
 
 const EMPTY_TRAIL: FleetPositionPoint[] = []
@@ -835,6 +836,7 @@ export function FleetMapScene({
 	defaultViewport,
 	emptyTitle = "No live telemetry yet",
 	emptyDescription = "Vehicles will appear here as soon as GPS data starts arriving.",
+	chromeStyle = "elevated",
 }: FleetMapSceneProps) {
 	const [isThreeD, setIsThreeD] = useState(true)
 	const [viewport, setViewport] = useState<MapViewport>(() => ({
@@ -851,6 +853,18 @@ export function FleetMapScene({
 		vehicles.find((vehicle) => vehicle.snapshot) ??
 		null
 	const selectedSnapshot = selectedVehicle?.snapshot ?? null
+	const mapGlassPanelClass =
+		chromeStyle === "flat"
+			? "border border-white/70 bg-[rgba(247,250,251,0.92)] text-slate-950 backdrop-blur-xl"
+			: MAP_GLASS_PANEL_CLASS
+	const mapControlsClassName =
+		chromeStyle === "flat"
+			? "[&>div]:overflow-hidden [&>div]:rounded-[12px] [&>div]:border-white/75 [&>div]:bg-[rgba(247,250,251,0.92)] [&_button]:text-slate-800 [&_button]:hover:bg-slate-900/6 [&_svg]:text-slate-700"
+			: "[&>div]:overflow-hidden [&>div]:rounded-[18px] [&>div]:border-white/75 [&>div]:bg-[rgba(247,250,251,0.88)] [&>div]:shadow-[0_20px_44px_-30px_rgba(15,23,42,0.24)] [&_button]:text-slate-800 [&_button]:hover:bg-slate-900/6 [&_svg]:text-slate-700"
+	const emptyStateClassName =
+		chromeStyle === "flat"
+			? "max-w-sm rounded-[16px] border border-dashed border-slate-300/80 bg-[rgba(247,250,251,0.94)] px-6 py-5 text-center text-slate-950 backdrop-blur-xl [&_.text-muted-foreground]:text-slate-500"
+			: "max-w-sm rounded-[28px] border border-dashed border-slate-300/80 bg-[rgba(247,250,251,0.9)] px-6 py-5 text-center text-slate-950 shadow-[0_24px_64px_-36px_rgba(15,23,42,0.22)] backdrop-blur-xl [&_.text-muted-foreground]:text-slate-500"
 	const routeCoordinates = trail.map((point) => [
 		point.longitude,
 		point.latitude,
@@ -939,15 +953,15 @@ export function FleetMapScene({
 					showZoom
 					showCompass
 					showFullscreen
-					className="[&>div]:overflow-hidden [&>div]:rounded-[18px] [&>div]:border-white/75 [&>div]:bg-[rgba(247,250,251,0.88)] [&>div]:shadow-[0_20px_44px_-30px_rgba(15,23,42,0.24)] [&_button]:text-slate-800 [&_button]:hover:bg-slate-900/6 [&_svg]:text-slate-700"
+					className={mapControlsClassName}
 				/>
 			</FleetMap>
 
 			<div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex items-start justify-between gap-3">
 				<div
 					className={cn(
-						"pointer-events-auto flex min-w-0 flex-1 items-center gap-3 rounded-[24px] px-4 py-3 [&_.text-muted-foreground]:text-slate-500 [&_.text-primary]:text-sky-700",
-						MAP_GLASS_PANEL_CLASS,
+						"pointer-events-auto flex min-w-0 flex-1 items-center gap-3 rounded-[14px] px-4 py-3 [&_.text-muted-foreground]:text-slate-500 [&_.text-primary]:text-sky-700",
+						mapGlassPanelClass,
 					)}
 				>
 					<Radar className="size-4 shrink-0 text-primary" />
@@ -955,8 +969,8 @@ export function FleetMapScene({
 				</div>
 				<div
 					className={cn(
-						"pointer-events-auto flex items-center gap-2 rounded-[22px] p-1.5",
-						MAP_GLASS_PANEL_CLASS,
+						"pointer-events-auto flex items-center gap-2 rounded-[12px] p-1.5",
+						mapGlassPanelClass,
 					)}
 				>
 					<button
@@ -987,8 +1001,8 @@ export function FleetMapScene({
 				<div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex">
 					<div
 						className={cn(
-							"rounded-[24px] px-4 py-3 [&_.text-muted-foreground]:text-slate-500",
-							MAP_GLASS_PANEL_CLASS,
+							"rounded-[14px] px-4 py-3 [&_.text-muted-foreground]:text-slate-500",
+							mapGlassPanelClass,
 						)}
 					>
 						<p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -1004,11 +1018,7 @@ export function FleetMapScene({
 				</div>
 			) : (
 				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
-					<div
-						className={cn(
-							"max-w-sm rounded-[28px] border border-dashed border-slate-300/80 bg-[rgba(247,250,251,0.9)] px-6 py-5 text-center text-slate-950 shadow-[0_24px_64px_-36px_rgba(15,23,42,0.22)] backdrop-blur-xl [&_.text-muted-foreground]:text-slate-500",
-						)}
-					>
+					<div className={cn(emptyStateClassName)}>
 						<p className="text-sm font-semibold text-slate-950">{emptyTitle}</p>
 						<p className="mt-2 text-sm text-muted-foreground">
 							{emptyDescription}
