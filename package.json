@@ -13,6 +13,7 @@
 		"auth:generate": "pnpm dlx @better-auth/cli@latest generate --config ./lib/auth.ts --output ./lib/db/schema/auth.ts --yes && node ./scripts/patch-auth-schema-uuid.mjs && node ./scripts/verify-auth-schema-uuid.mjs",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"db:seed:vehicles": "node ./scripts/seed-vehicle-lookup.mjs"
 	},

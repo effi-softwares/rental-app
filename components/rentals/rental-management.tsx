@@ -20,8 +20,7 @@ import {
 	Search,
 } from "lucide-react"
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { toast } from "sonner"
+import { useCallback, useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -61,11 +60,7 @@ import {
 } from "@/components/ui/table"
 import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
-import {
-	useHandoverRentalMutation,
-	useRentalsListQuery,
-	useReturnRentalMutation,
-} from "@/features/rentals"
+import { useRentalDraftQuery, useRentalsListQuery } from "@/features/rentals"
 import {
 	getRentalNextAction,
 	getRentalNextActionLabel,
@@ -76,8 +71,9 @@ import {
 	type RentalNextAction,
 } from "@/features/rentals/lib/ui-state"
 import type { RentalListItem } from "@/features/rentals/types/rental"
-import { resolveErrorMessage } from "@/lib/errors"
 import { RentalAppointmentDrawer } from "./rental-appointment-drawer"
+import { RentalHandoverDrawer } from "./rental-handover-drawer"
+import { RentalReturnDrawer } from "./rental-return-drawer"
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -301,20 +297,39 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 	)
 
 	const rentalsQuery = useRentalsListQuery(activeOrganizationId, statusPreset)
-	const handoverMutation = useHandoverRentalMutation(activeOrganizationId)
-	const returnMutation = useReturnRentalMutation(activeOrganizationId)
+	const [handoverFlowRental, setHandoverFlowRental] =
+		useState<RentalListItem | null>(null)
+	const handoverFlowDetailQuery = useRentalDraftQuery(
+		activeOrganizationId,
+		handoverFlowRental?.id,
+	)
+	const [returnFlowRental, setReturnFlowRental] =
+		useState<RentalListItem | null>(null)
+	const returnFlowDetailQuery = useRentalDraftQuery(
+		activeOrganizationId,
+		returnFlowRental?.id,
+	)
 
 	const [sorting, setSorting] = useState<SortingState>([])
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 	const [globalFilter, setGlobalFilter] = useState("")
 	const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
-	const [selectedAction, setSelectedAction] = useState<{
-		rental: RentalListItem
-		action: RentalNextAction
-	} | null>(null)
-	const [actionAmountTendered, setActionAmountTendered] = useState("")
 
 	const rentals = rentalsQuery.data?.rentals ?? []
+
+	const handleTransitionAction = useCallback(
+		(rental: RentalListItem, action: RentalNextAction) => {
+			if (action === "handover") {
+				setHandoverFlowRental(rental)
+				return
+			}
+
+			if (action === "return") {
+				setReturnFlowRental(rental)
+			}
+		},
+		[],
+	)
 
 	const sortedRentals = useMemo(() => {
 		return [...rentals].sort((left, right) => {
@@ -474,16 +489,13 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 					<RentalTransitionMenu
 						rental={row.original}
 						canManagePayments={canManagePayments}
-						onSelectAction={(rental, action) => {
-							setSelectedAction({ rental, action })
-							setActionAmountTendered("")
-						}}
+						onSelectAction={handleTransitionAction}
 					/>
 				),
 				enableSorting: false,
 			},
 		],
-		[canManagePayments],
+		[canManagePayments, handleTransitionAction],
 	)
 
 	const table = useReactTable({
@@ -542,65 +554,6 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 	const pageStart = totalFilteredRows === 0 ? 0 : pageIndex * pageSize + 1
 	const pageEnd = Math.min((pageIndex + 1) * pageSize, totalFilteredRows)
 	const paginationItems = buildPaginationItems(pageIndex, pageCount)
-
-	async function handleConfirmAction() {
-		if (!selectedAction) {
-			return
-		}
-
-		try {
-			if (selectedAction.action === "handover") {
-				const payload =
-					selectedAction.rental.selectedPaymentMethodType === "cash" &&
-					selectedAction.rental.firstCollectionTiming === "handover"
-						? {
-								amountTendered: Number(actionAmountTendered),
-							}
-						: {}
-
-				if (
-					selectedAction.rental.selectedPaymentMethodType === "cash" &&
-					selectedAction.rental.firstCollectionTiming === "handover" &&
-					(!actionAmountTendered.trim() || Number(actionAmountTendered) <= 0)
-				) {
-					toast.error(
-						"Enter the cash amount collected before completing handover.",
-					)
-					return
-				}
-
-				await handoverMutation.mutateAsync({
-					rentalId: selectedAction.rental.id,
-					payload,
-				})
-				toast.success("Vehicle handover completed.")
-			}
-
-			if (selectedAction.action === "return") {
-				await returnMutation.mutateAsync({
-					rentalId: selectedAction.rental.id,
-					payload: {},
-				})
-				toast.success("Rental return completed.")
-			}
-
-			setSelectedAction(null)
-			setActionAmountTendered("")
-		} catch (error) {
-			toast.error(
-				resolveErrorMessage(
-					error,
-					selectedAction.action === "handover"
-						? "Failed to hand over rental."
-						: "Failed to complete return.",
-				),
-			)
-		}
-	}
-
-	const selectedActionLabel = selectedAction
-		? getRentalNextActionLabel(selectedAction.action)
-		: null
 
 	return (
 		<div className="space-y-5">
@@ -746,13 +699,7 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 											<RentalTransitionMenu
 												rental={rental}
 												canManagePayments={canManagePayments}
-												onSelectAction={(selectedRental, action) => {
-													setSelectedAction({
-														rental: selectedRental,
-														action,
-													})
-													setActionAmountTendered("")
-												}}
+												onSelectAction={handleTransitionAction}
 											/>
 										</div>
 
@@ -941,91 +888,6 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 				</footer>
 			</section>
 
-			<ResponsiveDrawer
-				open={selectedAction !== null}
-				onOpenChange={(open) => {
-					if (!open) {
-						setSelectedAction(null)
-						setActionAmountTendered("")
-					}
-				}}
-				title={
-					selectedActionLabel
-						? `${selectedActionLabel} rental`
-						: "Rental action"
-				}
-				description={
-					selectedAction
-						? `${selectedAction.rental.customer?.fullName ?? "This customer"} • ${selectedAction.rental.vehicle?.label ?? "Vehicle pending"}`
-						: undefined
-				}
-			>
-				{selectedAction ? (
-					<div className="space-y-4">
-						<div className="rounded-2xl border bg-muted/30 p-4">
-							<p className="text-sm font-medium">
-								{getRentalNextStepCopy(selectedAction.action)}
-							</p>
-							<p className="text-muted-foreground mt-1 text-sm">
-								{selectedAction.action === "handover"
-									? "Use this when the customer is ready to take the vehicle."
-									: "Use this when the rental is ready to move into its return stage."}
-							</p>
-						</div>
-
-						{selectedAction.action === "handover" &&
-						selectedAction.rental.selectedPaymentMethodType === "cash" &&
-						selectedAction.rental.firstCollectionTiming === "handover" ? (
-							<div className="space-y-2">
-								<label className="text-sm font-medium" htmlFor="handover-cash">
-									Cash collected at handover
-								</label>
-								<Input
-									id="handover-cash"
-									value={actionAmountTendered}
-									onChange={(event) => {
-										setActionAmountTendered(event.target.value)
-									}}
-									placeholder="Enter amount tendered"
-									inputMode="decimal"
-								/>
-								<p className="text-muted-foreground text-sm">
-									Enter the amount collected now so handover can finish cleanly.
-								</p>
-							</div>
-						) : null}
-
-						<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									setSelectedAction(null)
-									setActionAmountTendered("")
-								}}
-							>
-								Cancel
-							</Button>
-							<Button
-								type="button"
-								onClick={() => {
-									void handleConfirmAction()
-								}}
-								disabled={
-									handoverMutation.isPending ||
-									returnMutation.isPending ||
-									(selectedAction.action === "handover" && !canManagePayments)
-								}
-							>
-								{handoverMutation.isPending || returnMutation.isPending
-									? "Saving..."
-									: selectedActionLabel}
-							</Button>
-						</div>
-					</div>
-				) : null}
-			</ResponsiveDrawer>
-
 			<RentalAppointmentDrawer
 				open={isCreateDrawerOpen}
 				onOpenChange={setIsCreateDrawerOpen}
@@ -1033,6 +895,74 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 					void rentalsQuery.refetch()
 				}}
 			/>
+
+			{handoverFlowRental && handoverFlowDetailQuery.isPending ? (
+				<ResponsiveDrawer
+					open
+					onOpenChange={(open) => {
+						if (!open) {
+							setHandoverFlowRental(null)
+						}
+					}}
+					title="Loading handover flow"
+					description="Fetching the rental details needed for the guided handover."
+				>
+					<p className="text-muted-foreground text-sm">
+						Loading the handover workflow...
+					</p>
+				</ResponsiveDrawer>
+			) : null}
+
+			{handoverFlowRental && handoverFlowDetailQuery.data ? (
+				<RentalHandoverDrawer
+					open
+					onOpenChange={(open) => {
+						if (!open) {
+							setHandoverFlowRental(null)
+						}
+					}}
+					rentalId={handoverFlowRental.id}
+					detail={handoverFlowDetailQuery.data}
+					onUpdated={async () => {
+						await handoverFlowDetailQuery.refetch()
+						await rentalsQuery.refetch()
+					}}
+				/>
+			) : null}
+
+			{returnFlowRental && returnFlowDetailQuery.isPending ? (
+				<ResponsiveDrawer
+					open
+					onOpenChange={(open) => {
+						if (!open) {
+							setReturnFlowRental(null)
+						}
+					}}
+					title="Loading return flow"
+					description="Fetching the rental details needed for the guided return."
+				>
+					<p className="text-muted-foreground text-sm">
+						Loading the return workflow...
+					</p>
+				</ResponsiveDrawer>
+			) : null}
+
+			{returnFlowRental && returnFlowDetailQuery.data ? (
+				<RentalReturnDrawer
+					open
+					onOpenChange={(open) => {
+						if (!open) {
+							setReturnFlowRental(null)
+						}
+					}}
+					rentalId={returnFlowRental.id}
+					detail={returnFlowDetailQuery.data}
+					onUpdated={async () => {
+						await returnFlowDetailQuery.refetch()
+						await rentalsQuery.refetch()
+					}}
+				/>
+			) : null}
 		</div>
 	)
 }

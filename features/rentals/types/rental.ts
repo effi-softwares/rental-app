@@ -31,6 +31,7 @@ export type RentalPaymentCollectionSurface =
 	| "direct_debit"
 export type RentalInspectionStage = "pickup" | "return"
 export type RentalInspectionCleanliness = "clean" | "needs_attention" | "dirty"
+export type RentalConditionRating = "excellent" | "good" | "fair" | "poor"
 export type RentalDamageCategory =
 	| "exterior"
 	| "interior"
@@ -83,6 +84,23 @@ export type RentalVehicleSummary = {
 		deliveryUrl: string
 		blurDataUrl: string
 	} | null
+	latestConditionSnapshot: {
+		rating: RentalConditionRating
+		inspectionStage: RentalInspectionStage
+		rentalId: string
+		inspectionId: string
+		recordedAt: string
+		odometerKm: number | null
+		fuelPercent: number | null
+		cleanliness: RentalInspectionCleanliness | null
+		notes: string | null
+		media: Array<{
+			assetId: string
+			deliveryUrl: string
+			blurDataUrl: string
+			label: string | null
+		}>
+	} | null
 	rates: Array<{
 		pricingModel: "Daily" | "Weekly" | "Monthly" | "Distance-Based"
 		rate: number
@@ -94,13 +112,13 @@ export type RentalVehicleSummary = {
 export type RentalAvailabilityConflict = {
 	id: string
 	sourceType:
-		| "rental"
-		| "draft_hold"
-		| "maintenance"
-		| "prep_before"
-		| "prep_after"
-		| "manual_hold"
-		| "blackout"
+	| "rental"
+	| "draft_hold"
+	| "maintenance"
+	| "prep_before"
+	| "prep_after"
+	| "manual_hold"
+	| "blackout"
 	startsAt: string
 	endsAt: string
 	note: string | null
@@ -227,6 +245,7 @@ export type RentalInspectionSummary = {
 	odometerKm: number | null
 	fuelPercent: number | null
 	cleanliness: RentalInspectionCleanliness | null
+	conditionRating: RentalConditionRating | null
 	checklist: Record<string, boolean>
 	notes: string | null
 	signature: {
@@ -319,13 +338,13 @@ export type RentalPaymentSummary = {
 	scheduleId: string | null
 	kind: "payment_method_setup" | "schedule_collection"
 	status:
-		| "pending"
-		| "requires_action"
-		| "processing"
-		| "succeeded"
-		| "failed"
-		| "refunded"
-		| "cancelled"
+	| "pending"
+	| "requires_action"
+	| "processing"
+	| "succeeded"
+	| "failed"
+	| "refunded"
+	| "cancelled"
 	amount: number
 	currency: string
 	paymentMethodType: RentalPaymentMethodType | null
@@ -416,6 +435,7 @@ export type RentalDetailResponse = {
 		canCancel: boolean
 		missingPickupInspection: boolean
 		hasReturnInspection: boolean
+		hasRequiredReturnConditionEvidence: boolean
 		hasOutstandingScheduledBalance: boolean
 		hasOutstandingExtraCharges: boolean
 		requiresDepositResolution: boolean
@@ -538,11 +558,11 @@ export type CollectCashPaymentResponse = {
 
 export type ConfirmRentalPaymentPayload =
 	| {
-			paymentIntentId: string
-	  }
+		paymentIntentId: string
+	}
 	| {
-			setupIntentId: string
-	  }
+		setupIntentId: string
+	}
 
 export type ConfirmRentalPaymentResponse = {
 	status: RentalPaymentSummary["status"]
@@ -586,6 +606,8 @@ export type SaveRentalInspectionPayload = {
 	odometerKm?: number | null
 	fuelPercent?: number | null
 	cleanliness?: RentalInspectionCleanliness | null
+	conditionRating?: RentalConditionRating | null
+	updateVehicleCondition?: boolean
 	checklist?: Record<string, boolean>
 	notes?: string
 	signature?: string
@@ -664,16 +686,16 @@ export type CollectRentalChargeResponse = {
 
 export type ResolveRentalDepositPayload =
 	| {
-			action: "release" | "refund" | "retain"
-			amount: number
-			note?: string
-	  }
+		action: "release" | "refund" | "retain"
+		amount: number
+		note?: string
+	}
 	| {
-			action: "apply_to_charge"
-			amount: number
-			chargeId: string
-			note?: string
-	  }
+		action: "apply_to_charge"
+		amount: number
+		chargeId: string
+		note?: string
+	}
 
 export type ResolveRentalDepositResponse = {
 	depositEvent: RentalDepositEventSummary

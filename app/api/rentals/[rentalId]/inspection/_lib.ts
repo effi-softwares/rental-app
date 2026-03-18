@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm"
 import { getViewerMembershipId } from "@/lib/authorization/server"
 import { db } from "@/lib/db"
 import { rentalDamage, rentalInspection } from "@/lib/db/schema/rentals"
+import { vehicle } from "@/lib/db/schema/vehicles"
 import type { Context } from "@/types"
 import {
 	logRentalEvent,
@@ -69,12 +70,15 @@ function normalizeMedia(value: unknown) {
 export async function saveRentalInspection(input: {
 	viewer: Context & { activeOrganizationId: string }
 	rentalId: string
+	vehicleId: string | null
 	branchId: string | null
 	stage: "pickup" | "return"
 	payload: {
 		odometerKm?: number | null
 		fuelPercent?: number | null
 		cleanliness?: "clean" | "needs_attention" | "dirty" | null
+		conditionRating?: "excellent" | "good" | "fair" | "poor" | null
+		updateVehicleCondition?: boolean
 		checklist?: Record<string, boolean>
 		notes?: string
 		signature?: string
@@ -115,6 +119,7 @@ export async function saveRentalInspection(input: {
 				? input.payload.fuelPercent.toFixed(2)
 				: null,
 		cleanliness: input.payload.cleanliness ?? null,
+		conditionRating: input.payload.conditionRating ?? null,
 		checklistJson: normalizeChecklist(input.payload.checklist),
 		notes: input.payload.notes?.trim() || null,
 		signaturePayload: {
@@ -130,52 +135,52 @@ export async function saveRentalInspection(input: {
 	const existingInspection =
 		input.stage === "return"
 			? await db
-					.select()
-					.from(rentalInspection)
-					.where(
-						and(
-							eq(
-								rentalInspection.organizationId,
-								input.viewer.activeOrganizationId,
-							),
-							eq(rentalInspection.rentalId, input.rentalId),
-							eq(rentalInspection.stage, input.stage),
-						),
-					)
-					.orderBy(
-						desc(rentalInspection.completedAt),
-						desc(rentalInspection.createdAt),
-					)
-					.limit(1)
-					.then((rows) => rows[0] ?? null)
-			: null
-
-	const inspection = existingInspection
-		? await db
-				.update(rentalInspection)
-				.set(normalizedInspectionValues)
+				.select()
+				.from(rentalInspection)
 				.where(
 					and(
 						eq(
 							rentalInspection.organizationId,
 							input.viewer.activeOrganizationId,
 						),
-						eq(rentalInspection.id, existingInspection.id),
+						eq(rentalInspection.rentalId, input.rentalId),
+						eq(rentalInspection.stage, input.stage),
 					),
 				)
-				.returning()
-				.then((rows) => rows[0])
+				.orderBy(
+					desc(rentalInspection.completedAt),
+					desc(rentalInspection.createdAt),
+				)
+				.limit(1)
+				.then((rows) => rows[0] ?? null)
+			: null
+
+	const inspection = existingInspection
+		? await db
+			.update(rentalInspection)
+			.set(normalizedInspectionValues)
+			.where(
+				and(
+					eq(
+						rentalInspection.organizationId,
+						input.viewer.activeOrganizationId,
+					),
+					eq(rentalInspection.id, existingInspection.id),
+				),
+			)
+			.returning()
+			.then((rows) => rows[0])
 		: await db
-				.insert(rentalInspection)
-				.values({
-					organizationId: input.viewer.activeOrganizationId,
-					branchId: input.branchId,
-					rentalId: input.rentalId,
-					stage: input.stage,
-					...normalizedInspectionValues,
-				})
-				.returning()
-				.then((rows) => rows[0])
+			.insert(rentalInspection)
+			.values({
+				organizationId: input.viewer.activeOrganizationId,
+				branchId: input.branchId,
+				rentalId: input.rentalId,
+				stage: input.stage,
+				...normalizedInspectionValues,
+			})
+			.returning()
+			.then((rows) => rows[0])
 
 	if (existingInspection) {
 		await db
@@ -211,34 +216,70 @@ export async function saveRentalInspection(input: {
 	const damageRows =
 		normalizedDamages.length > 0
 			? await db
-					.insert(rentalDamage)
-					.values(
-						normalizedDamages.map((entry) => ({
-							organizationId: input.viewer.activeOrganizationId,
-							branchId: input.branchId,
-							rentalId: input.rentalId,
-							inspectionId: inspection.id,
-							category: entry.category,
-							title: entry.title,
-							description: entry.description,
-							severity: entry.severity,
-							customerLiabilityAmount: entry.customerLiabilityAmount.toFixed(2),
-							estimatedCost:
-								entry.estimatedCost == null
-									? null
-									: entry.estimatedCost.toFixed(2),
-							actualCost:
-								entry.actualCost == null ? null : entry.actualCost.toFixed(2),
-							repairStatus: entry.repairStatus,
-							occurredAt: entry.occurredAt,
-							mediaJson: entry.mediaJson,
-							metadata: {
-								stage: input.stage,
-							},
-						})),
-					)
-					.returning()
+				.insert(rentalDamage)
+				.values(
+					normalizedDamages.map((entry) => ({
+						organizationId: input.viewer.activeOrganizationId,
+						branchId: input.branchId,
+						rentalId: input.rentalId,
+						inspectionId: inspection.id,
+						category: entry.category,
+						title: entry.title,
+						description: entry.description,
+						severity: entry.severity,
+						customerLiabilityAmount: entry.customerLiabilityAmount.toFixed(2),
+						estimatedCost:
+							entry.estimatedCost == null
+								? null
+								: entry.estimatedCost.toFixed(2),
+						actualCost:
+							entry.actualCost == null ? null : entry.actualCost.toFixed(2),
+						repairStatus: entry.repairStatus,
+						occurredAt: entry.occurredAt,
+						mediaJson: entry.mediaJson,
+						metadata: {
+							stage: input.stage,
+						},
+					})),
+				)
+				.returning()
 			: []
+
+	const shouldUpdateVehicleCondition =
+		input.stage === "return" || Boolean(input.payload.updateVehicleCondition)
+
+	if (shouldUpdateVehicleCondition && input.vehicleId) {
+		const recordedAt = inspection.completedAt.toISOString()
+		await db
+			.update(vehicle)
+			.set({
+				latestConditionSnapshot: {
+					rating: inspection.conditionRating,
+					inspectionStage: input.stage,
+					rentalId: input.rentalId,
+					inspectionId: inspection.id,
+					recordedAt,
+					odometerKm:
+						inspection.odometerKm === null
+							? null
+							: numericToNumber(inspection.odometerKm),
+					fuelPercent:
+						inspection.fuelPercent === null
+							? null
+							: numericToNumber(inspection.fuelPercent),
+					cleanliness: inspection.cleanliness,
+					notes: inspection.notes,
+					media: normalizeMedia(input.payload.media),
+				},
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(vehicle.organizationId, input.viewer.activeOrganizationId),
+					eq(vehicle.id, input.vehicleId),
+				),
+			)
+	}
 
 	await logRentalEvent({
 		viewer: input.viewer,
@@ -247,6 +288,7 @@ export async function saveRentalInspection(input: {
 		type: `rental.inspection.${input.stage}.saved`,
 		payload: {
 			inspectionId: inspection.id,
+			conditionRating: inspection.conditionRating,
 			odometerKm:
 				inspection.odometerKm === null
 					? null

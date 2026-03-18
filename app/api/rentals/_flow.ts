@@ -727,7 +727,13 @@ async function buildRentalDetailResponse(
 		0,
 	)
 	const hasPickupInspection = inspections.some((row) => row.stage === "pickup")
-	const hasReturnInspection = inspections.some((row) => row.stage === "return")
+	const returnInspection =
+		inspections.find((row) => row.stage === "return") ?? null
+	const hasReturnInspection = Boolean(returnInspection)
+	const hasRequiredReturnConditionEvidence = Boolean(
+		returnInspection?.conditionRating &&
+			(returnInspection.media.length ?? 0) > 0,
+	)
 	const hasOpenExtraCharges = extraCharges.some(
 		(row) => row.status === "open" || row.status === "partially_paid",
 	)
@@ -755,8 +761,7 @@ async function buildRentalDetailResponse(
 		canHandover:
 			canManagePayments &&
 			(rentalRecord.status === "scheduled" ||
-				rentalRecord.status === "awaiting_payment") &&
-			hasPickupInspection,
+				rentalRecord.status === "awaiting_payment"),
 		canExtend: rentalRecord.status === "active",
 		canInitiateReturn:
 			rentalRecord.status === "active" || rentalRecord.status === "scheduled",
@@ -769,7 +774,7 @@ async function buildRentalDetailResponse(
 		canCompleteReturn:
 			(rentalRecord.status === "active" ||
 				rentalRecord.status === "scheduled") &&
-			hasReturnInspection &&
+			hasRequiredReturnConditionEvidence &&
 			!hasOutstandingScheduledBalance &&
 			!hasOutstandingExtraCharges &&
 			!requiresDepositResolution,
@@ -784,6 +789,7 @@ async function buildRentalDetailResponse(
 				rentalRecord.status === "completed") &&
 			!hasPickupInspection,
 		hasReturnInspection,
+		hasRequiredReturnConditionEvidence,
 		hasOutstandingScheduledBalance,
 		hasOutstandingExtraCharges,
 		requiresDepositResolution,

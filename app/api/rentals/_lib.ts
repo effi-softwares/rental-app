@@ -227,6 +227,7 @@ export function mapRentalInspectionRecord(
 		| "odometerKm"
 		| "fuelPercent"
 		| "cleanliness"
+		| "conditionRating"
 		| "checklistJson"
 		| "notes"
 		| "signaturePayload"
@@ -237,9 +238,9 @@ export function mapRentalInspectionRecord(
 ) {
 	const signaturePayload = record.signaturePayload as
 		| {
-				signerName?: unknown
-				signature?: unknown
-		  }
+			signerName?: unknown
+			signature?: unknown
+		}
 		| undefined
 
 	return {
@@ -250,6 +251,7 @@ export function mapRentalInspectionRecord(
 		fuelPercent:
 			record.fuelPercent === null ? null : numericToNumber(record.fuelPercent),
 		cleanliness: record.cleanliness,
+		conditionRating: record.conditionRating,
 		checklist:
 			record.checklistJson && typeof record.checklistJson === "object"
 				? (record.checklistJson as Record<string, boolean>)
@@ -257,19 +259,66 @@ export function mapRentalInspectionRecord(
 		notes: record.notes,
 		signature: signaturePayload
 			? {
-					signerName:
-						typeof signaturePayload.signerName === "string"
-							? signaturePayload.signerName
-							: null,
-					signature:
-						typeof signaturePayload.signature === "string"
-							? signaturePayload.signature
-							: null,
-				}
+				signerName:
+					typeof signaturePayload.signerName === "string"
+						? signaturePayload.signerName
+						: null,
+				signature:
+					typeof signaturePayload.signature === "string"
+						? signaturePayload.signature
+						: null,
+			}
 			: null,
 		media: mapRentalMediaArray(record.mediaJson),
 		completedAt: record.completedAt.toISOString(),
 		completedByMemberId: record.completedByMemberId,
+	}
+}
+
+function mapVehicleConditionSnapshot(
+	value: (typeof vehicle.$inferSelect)["latestConditionSnapshot"],
+) {
+	if (!value || typeof value !== "object") {
+		return null
+	}
+
+	const snapshot = value as {
+		rating?: unknown
+		inspectionStage?: unknown
+		rentalId?: unknown
+		inspectionId?: unknown
+		recordedAt?: unknown
+		odometerKm?: unknown
+		fuelPercent?: unknown
+		cleanliness?: unknown
+		notes?: unknown
+		media?: unknown
+	}
+
+	if (
+		typeof snapshot.rating !== "string" ||
+		typeof snapshot.inspectionStage !== "string" ||
+		typeof snapshot.rentalId !== "string" ||
+		typeof snapshot.inspectionId !== "string" ||
+		typeof snapshot.recordedAt !== "string"
+	) {
+		return null
+	}
+
+	return {
+		rating: snapshot.rating,
+		inspectionStage: snapshot.inspectionStage,
+		rentalId: snapshot.rentalId,
+		inspectionId: snapshot.inspectionId,
+		recordedAt: snapshot.recordedAt,
+		odometerKm:
+			typeof snapshot.odometerKm === "number" ? snapshot.odometerKm : null,
+		fuelPercent:
+			typeof snapshot.fuelPercent === "number" ? snapshot.fuelPercent : null,
+		cleanliness:
+			typeof snapshot.cleanliness === "string" ? snapshot.cleanliness : null,
+		notes: typeof snapshot.notes === "string" ? snapshot.notes : null,
+		media: mapRentalMediaArray(snapshot.media),
 	}
 }
 
@@ -433,7 +482,7 @@ export function hasReachableCustomerContact(record: {
 }) {
 	return Boolean(
 		(typeof record.email === "string" && record.email.trim().length > 0) ||
-			(typeof record.phone === "string" && record.phone.trim().length > 0),
+		(typeof record.phone === "string" && record.phone.trim().length > 0),
 	)
 }
 
@@ -555,6 +604,7 @@ export async function getRentalVehicleSummary(
 			brandName: vehicleBrand.name,
 			modelName: vehicleModel.name,
 			images: vehicle.images,
+			latestConditionSnapshot: vehicle.latestConditionSnapshot,
 		})
 		.from(vehicle)
 		.innerJoin(vehicleBrand, eq(vehicle.brandId, vehicleBrand.id))
@@ -600,6 +650,9 @@ export async function getRentalVehicleSummary(
 		transmission: vehicleRecord.transmission,
 		seats: vehicleRecord.seats,
 		frontImage: normalizeFrontImageForSummary(vehicleRecord.images),
+		latestConditionSnapshot: mapVehicleConditionSnapshot(
+			vehicleRecord.latestConditionSnapshot,
+		),
 		rates: rateRows.map((rate) => ({
 			pricingModel: rate.pricingModel,
 			rate: numericToNumber(rate.rate),

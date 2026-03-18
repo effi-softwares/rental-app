@@ -26,6 +26,7 @@ export async function POST(request: Request, { params }: RouteProps) {
 	}
 
 	if (
+		scopedRental.record.status !== "draft" &&
 		scopedRental.record.status !== "scheduled" &&
 		scopedRental.record.status !== "awaiting_payment" &&
 		scopedRental.record.status !== "active"
@@ -44,9 +45,26 @@ export async function POST(request: Request, { params }: RouteProps) {
 		return jsonError("Inspection payload is required.", 400)
 	}
 
+	if (payload.updateVehicleCondition) {
+		if (!payload.conditionRating) {
+			return jsonError(
+				"Select a condition rating when the vehicle condition changed.",
+				400,
+			)
+		}
+
+		if (!Array.isArray(payload.media) || payload.media.length === 0) {
+			return jsonError(
+				"Add at least one photo or video proof when updating the vehicle condition.",
+				400,
+			)
+		}
+	}
+
 	const result = await saveRentalInspection({
 		viewer: guard.viewer,
 		rentalId: scopedRental.record.id,
+		vehicleId: scopedRental.record.vehicleId,
 		branchId: scopedRental.record.branchId,
 		stage: "pickup",
 		payload,

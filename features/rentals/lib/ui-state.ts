@@ -106,7 +106,7 @@ export function getRentalPrimaryAction(
 			type: "handover",
 			label: "Handover vehicle",
 			description:
-				"Confirm pickup is ready and complete the vehicle handover when the customer arrives.",
+				"Open the guided handover flow to record start-of-rental checks and release the vehicle.",
 			disabled: !detail.actionState.canHandover,
 		}
 	}
@@ -149,7 +149,9 @@ export function getRentalAttentionMessages(
 	}
 
 	if (detail.actionState.missingPickupInspection) {
-		messages.push("Pickup inspection is still missing before handover.")
+		messages.push(
+			"Start the handover flow to record the required start-of-rental inspection.",
+		)
 	}
 
 	if (detail.rental.status === "scheduled" && detail.actionState.canHandover) {

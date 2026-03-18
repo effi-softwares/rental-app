@@ -57,6 +57,20 @@
 			"when": 1773390000000,
 			"tag": "0007_availability_engine",
 			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1773820800000,
+			"tag": "0008_vehicle_condition_flow",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1773810140335,
+			"tag": "0009_wealthy_wild_child",
+			"breakpoints": true
 		}
 	]
 }

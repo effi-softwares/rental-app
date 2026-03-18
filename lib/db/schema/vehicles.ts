@@ -209,6 +209,23 @@ export const vehicle = pgTable(
 			}>()
 			.default({})
 			.notNull(),
+		latestConditionSnapshot: jsonb("latest_condition_snapshot").$type<{
+			rating: "excellent" | "good" | "fair" | "poor"
+			inspectionStage: "pickup" | "return"
+			rentalId: string
+			inspectionId: string
+			recordedAt: string
+			odometerKm: number | null
+			fuelPercent: number | null
+			cleanliness: "clean" | "needs_attention" | "dirty" | null
+			notes: string | null
+			media: Array<{
+				assetId: string
+				deliveryUrl: string
+				blurDataUrl: string
+				label?: string | null
+			}>
+		}>(),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.defaultNow()
 			.notNull(),

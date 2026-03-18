@@ -18,8 +18,9 @@ import type { Dispatch, ReactNode, SetStateAction } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { MediaImage } from "@/components/media/media-image"
 import { MediaUploader } from "@/components/media/media-uploader"
+import { RentalConditionMediaPreview } from "@/components/rentals/rental-condition-media-preview"
+import { RentalConditionRatingSelector } from "@/components/rentals/rental-condition-rating-selector"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,12 +30,19 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card"
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
-import { ResponsiveDrawer } from "@/components/ui/responsive-drawer"
 import { Textarea } from "@/components/ui/textarea"
 import {
 	type RentalChargeKind,
 	type RentalChargeSummary,
+	type RentalConditionRating,
 	type RentalDamageCategory,
 	type RentalDamageSeverity,
 	type RentalDetailResponse,
@@ -330,8 +338,8 @@ function StepCard({
 	return (
 		<div
 			className={cn(
-				"min-w-[220px] rounded-[24px] border px-4 py-4 transition md:min-w-0",
-				active && "border-primary bg-primary/[0.08] shadow-sm",
+				"min-w-55 rounded-[24px] border px-4 py-4 transition md:min-w-0",
+				active && "border-primary bg-primary/8 shadow-sm",
 				completed && "border-emerald-300 bg-emerald-50",
 			)}
 		>
@@ -400,51 +408,7 @@ function MediaPreviewGrid({
 	items: UploadedMediaItem[]
 	onRemove: (assetId: string) => void
 }) {
-	if (items.length === 0) {
-		return (
-			<div className="rounded-2xl border border-dashed p-4">
-				<p className="text-muted-foreground text-sm">No photos added yet.</p>
-			</div>
-		)
-	}
-
-	return (
-		<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-			{items.map((item) => (
-				<div key={item.assetId} className="overflow-hidden rounded-2xl border">
-					<div className="relative aspect-[4/3] bg-muted">
-						<MediaImage
-							fill
-							asset={{
-								id: item.assetId,
-								deliveryUrl: item.deliveryUrl,
-								visibility: "private",
-								blurDataUrl: item.blurDataUrl || null,
-								originalFileName: item.label ?? "Vehicle photo",
-								contentType: "image/jpeg",
-							}}
-							alt={item.label ?? "Vehicle photo"}
-						/>
-					</div>
-					<div className="flex items-center justify-between gap-2 px-3 py-2">
-						<p className="truncate text-sm font-medium">
-							{item.label ?? "Uploaded photo"}
-						</p>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => {
-								onRemove(item.assetId)
-							}}
-						>
-							<Trash2 className="size-4" />
-						</Button>
-					</div>
-				</div>
-			))}
-		</div>
-	)
+	return <RentalConditionMediaPreview items={items} onRemove={onRemove} />
 }
 
 export function RentalReturnDrawer({
@@ -469,6 +433,8 @@ export function RentalReturnDrawer({
 	const [returnFuelPercent, setReturnFuelPercent] = useState("")
 	const [cleanliness, setCleanliness] =
 		useState<RentalInspectionCleanliness>("clean")
+	const [conditionRating, setConditionRating] =
+		useState<RentalConditionRating | null>(null)
 	const [staffNotes, setStaffNotes] = useState("")
 	const [checklist, setChecklist] = useState<Record<string, boolean>>({
 		exteriorChecked: true,
@@ -534,6 +500,7 @@ export function RentalReturnDrawer({
 				: "",
 		)
 		setCleanliness(returnInspection?.cleanliness ?? "clean")
+		setConditionRating(returnInspection?.conditionRating ?? null)
 		setStaffNotes(returnInspection?.notes ?? "")
 		setChecklist({
 			exteriorChecked: returnInspection?.checklist.exteriorChecked ?? true,
@@ -569,14 +536,17 @@ export function RentalReturnDrawer({
 	const dueNowTotal =
 		detail.financials.scheduledOutstanding +
 		detail.financials.extraChargesOutstanding
-	const hasRequiredPhotos =
-		exteriorPhotos.length > 0 &&
-		interiorPhotos.length > 0 &&
-		dashboardPhotos.length > 0
+	const allEvidenceMedia = [
+		...exteriorPhotos,
+		...interiorPhotos,
+		...dashboardPhotos,
+		...additionalPhotos,
+	]
+	const hasRequiredProofMedia = allEvidenceMedia.length > 0
 
 	const stepCompleted = [
-		Boolean(actualEndAt),
-		hasRequiredPhotos,
+		Boolean(actualEndAt) && Boolean(conditionRating),
+		hasRequiredProofMedia,
 		detail.actionState.hasReturnInspection || step > 2,
 		dueNowTotal <= 0.009,
 		detail.actionState.canCompleteReturn,
@@ -657,10 +627,13 @@ export function RentalReturnDrawer({
 			return false
 		}
 
-		if (!hasRequiredPhotos) {
-			toast.error(
-				"Add exterior, interior, and dashboard photos before continuing.",
-			)
+		if (!conditionRating) {
+			toast.error("Select the return condition rating before continuing.")
+			return false
+		}
+
+		if (!hasRequiredProofMedia) {
+			toast.error("Add at least one photo or video proof before continuing.")
 			return false
 		}
 
@@ -669,19 +642,12 @@ export function RentalReturnDrawer({
 				toast.error(`Damage item ${index + 1} needs a short title.`)
 				return false
 			}
-			if (
-				damage.customerLiabilityAmount.trim() &&
-				toOptionalNumber(damage.customerLiabilityAmount) === null
-			) {
-				toast.error(`Damage item ${index + 1} has an invalid liability amount.`)
-				return false
-			}
-		}
 
-		for (const [index, expense] of expenseDrafts.entries()) {
-			const amount = toOptionalNumber(expense.amount)
-			if (amount === null || amount <= 0) {
-				toast.error(`Expense item ${index + 1} needs a valid amount.`)
+			if (
+				damage.actualCost.trim() &&
+				(!toOptionalNumber(damage.actualCost) || Number(damage.actualCost) < 0)
+			) {
+				toast.error(`Damage item ${index + 1} needs a valid actual cost.`)
 				return false
 			}
 		}
@@ -705,6 +671,7 @@ export function RentalReturnDrawer({
 					odometerKm: toOptionalNumber(returnOdometer),
 					fuelPercent: toOptionalNumber(returnFuelPercent),
 					cleanliness,
+					conditionRating,
 					checklist,
 					notes: staffNotes.trim(),
 					media: [
@@ -999,15 +966,17 @@ export function RentalReturnDrawer({
 				toast.error("Add the actual return time to continue.")
 				return
 			}
+			if (!conditionRating) {
+				toast.error("Select the return condition rating to continue.")
+				return
+			}
 			setStep(1)
 			return
 		}
 
 		if (step === 1) {
-			if (!hasRequiredPhotos) {
-				toast.error(
-					"Add exterior, interior, and dashboard photos before continuing.",
-				)
+			if (!hasRequiredProofMedia) {
+				toast.error("Add at least one photo or video proof to continue.")
 				return
 			}
 			setStep(2)
@@ -1037,16 +1006,36 @@ export function RentalReturnDrawer({
 				<SectionNote
 					icon={<FileText className="size-4" />}
 					title="Start with the real handback details"
-					description="These details anchor the rest of the return. Staff should be able to understand when the vehicle came back and what condition it was in."
+					description="These details anchor the rest of the return. Staff should be able to understand when the vehicle came back and the final condition rating before the rest of the flow starts."
 				/>
+
+				{detail.vehicle?.latestConditionSnapshot ? (
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-sm font-semibold">Latest vehicle baseline</p>
+						<p className="text-muted-foreground mt-1 text-sm">
+							Last recorded as{" "}
+							{detail.vehicle.latestConditionSnapshot.rating.replaceAll(
+								"_",
+								" ",
+							)}
+							during the{" "}
+							{detail.vehicle.latestConditionSnapshot.inspectionStage}{" "}
+							inspection.
+						</p>
+						<p className="text-muted-foreground mt-2 text-sm">
+							Use this as the comparison point while checking the vehicle back
+							in.
+						</p>
+					</div>
+				) : null}
 
 				<div className="grid gap-4 lg:grid-cols-2">
 					<Card className="border-border/70">
 						<CardHeader>
 							<CardTitle>Return details</CardTitle>
 							<CardDescription>
-								Add the actual time, odometer, fuel, and a short note for the
-								team.
+								Add the actual time, odometer, fuel, condition rating, and a
+								short note for the team.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
@@ -1096,6 +1085,12 @@ export function RentalReturnDrawer({
 									/>
 								</FormField>
 							</div>
+							<FormField label="Return condition rating">
+								<RentalConditionRatingSelector
+									value={conditionRating}
+									onChange={setConditionRating}
+								/>
+							</FormField>
 							<FormField label="Staff notes">
 								<Textarea
 									value={staffNotes}
@@ -1167,8 +1162,8 @@ export function RentalReturnDrawer({
 			<div className="space-y-5">
 				<SectionNote
 					icon={<Camera className="size-4" />}
-					title="Capture the essential evidence first"
-					description="At least one exterior, one interior, and one dashboard photo are required. This makes disputes easier to handle later."
+					title="Capture proof before the customer leaves"
+					description="At least one photo or video proof is required. Exterior, interior, and dashboard angles are still recommended because they make disputes easier to handle later."
 				/>
 
 				<div className="grid gap-4">
@@ -1179,7 +1174,7 @@ export function RentalReturnDrawer({
 							field: "return-exterior",
 							items: exteriorPhotos,
 							setter: setExteriorPhotos,
-							required: true,
+							required: false,
 							label: "Exterior overview",
 						},
 						{
@@ -1188,7 +1183,7 @@ export function RentalReturnDrawer({
 							field: "return-interior",
 							items: interiorPhotos,
 							setter: setInteriorPhotos,
-							required: true,
+							required: false,
 							label: "Interior overview",
 						},
 						{
@@ -1198,7 +1193,7 @@ export function RentalReturnDrawer({
 							field: "return-dashboard",
 							items: dashboardPhotos,
 							setter: setDashboardPhotos,
-							required: true,
+							required: false,
 							label: "Dashboard / odometer / fuel",
 						},
 						{
@@ -1969,6 +1964,9 @@ export function RentalReturnDrawer({
 			!detail.actionState.hasReturnInspection
 				? "Return inspection is still missing."
 				: null,
+			!detail.actionState.hasRequiredReturnConditionEvidence
+				? "Return condition rating and proof media are still missing."
+				: null,
 			detail.actionState.hasOutstandingScheduledBalance
 				? "Scheduled rental balance is still outstanding."
 				: null,
@@ -2184,18 +2182,17 @@ export function RentalReturnDrawer({
 											Photos captured
 										</p>
 										<p className="mt-2 text-xl font-semibold">
-											{exteriorPhotos.length +
-												interiorPhotos.length +
-												dashboardPhotos.length +
-												additionalPhotos.length}
+											{allEvidenceMedia.length}
 										</p>
 									</div>
 									<div className="rounded-2xl border p-4">
 										<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
-											Damage items
+											Condition rating
 										</p>
 										<p className="mt-2 text-xl font-semibold">
-											{damageDrafts.length}
+											{conditionRating
+												? conditionRating.replaceAll("_", " ")
+												: "Missing"}
 										</p>
 									</div>
 								</div>
@@ -2241,89 +2238,90 @@ export function RentalReturnDrawer({
 		)
 	}
 
-	return (
-		<ResponsiveDrawer
-			open={open}
-			onOpenChange={onOpenChange}
-			title="Vehicle return"
-			description="Guide the branch through check-in, evidence, charges, balance, and deposit resolution in one place."
-			desktopClassName="max-h-[90vh] overflow-y-auto sm:max-w-6xl"
-			mobileClassName="max-h-[94vh] overflow-y-auto rounded-t-3xl p-0"
-		>
-			<div className="space-y-6 pb-2">
-				<div className="space-y-4">
-					<div className="rounded-[28px] border bg-muted/20 p-4">
-						<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-							<div>
-								<div className="flex flex-wrap items-center gap-2">
-									<Badge variant="outline">Return flow</Badge>
-									<Badge variant="outline">
-										{detail.vehicle?.label ?? "Vehicle pending"}
-									</Badge>
-								</div>
-								<h2 className="mt-3 text-xl font-semibold">
-									Bring the rental back to a clear final state
-								</h2>
-								<p className="text-muted-foreground mt-1 text-sm">
-									Each step keeps the team focused on one job at a time, so the
-									return is easier to understand and harder to miss.
-								</p>
-							</div>
-							<div className="grid gap-3 sm:grid-cols-3">
-								<div className="rounded-2xl border bg-background px-4 py-3">
-									<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
-										Balance due
-									</p>
-									<p className="mt-2 font-semibold">
-										{formatCurrency(dueNowTotal, detail.deposit.currency)}
+	const drawerBody = (
+		<>
+			<div className="shrink-0 border-b bg-background/90 backdrop-blur-sm">
+				<div className="mx-auto w-full max-w-390 px-4 pb-5 pt-5 sm:px-6 lg:px-8">
+					<div className="space-y-4">
+						<div className="rounded-[28px] border bg-muted/20 p-4">
+							<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+								<div>
+									<div className="flex flex-wrap items-center gap-2">
+										<Badge variant="outline">Return flow</Badge>
+										<Badge variant="outline">
+											{detail.vehicle?.label ?? "Vehicle pending"}
+										</Badge>
+									</div>
+									<h2 className="mt-3 text-xl font-semibold">
+										Bring the rental back to a clear final state
+									</h2>
+									<p className="text-muted-foreground mt-1 text-sm">
+										Each step keeps the team focused on one job at a time, so
+										the return is easier to understand and harder to miss.
 									</p>
 								</div>
-								<div className="rounded-2xl border bg-background px-4 py-3">
-									<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
-										Deposit held
-									</p>
-									<p className="mt-2 font-semibold">
-										{formatCurrency(
-											detail.financials.depositHeld,
-											detail.deposit.currency,
-										)}
-									</p>
-								</div>
-								<div className="rounded-2xl border bg-background px-4 py-3">
-									<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
-										Return status
-									</p>
-									<p className="mt-2 font-semibold">
-										{detail.actionState.canCompleteReturn
-											? "Ready to close"
-											: "Needs review"}
-									</p>
+								<div className="grid gap-3 sm:grid-cols-3">
+									<div className="rounded-2xl border bg-background px-4 py-3">
+										<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
+											Balance due
+										</p>
+										<p className="mt-2 font-semibold">
+											{formatCurrency(dueNowTotal, detail.deposit.currency)}
+										</p>
+									</div>
+									<div className="rounded-2xl border bg-background px-4 py-3">
+										<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
+											Deposit held
+										</p>
+										<p className="mt-2 font-semibold">
+											{formatCurrency(
+												detail.financials.depositHeld,
+												detail.deposit.currency,
+											)}
+										</p>
+									</div>
+									<div className="rounded-2xl border bg-background px-4 py-3">
+										<p className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
+											Return status
+										</p>
+										<p className="mt-2 font-semibold">
+											{detail.actionState.canCompleteReturn
+												? "Ready to close"
+												: "Needs review"}
+										</p>
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
 
-					<div className="flex gap-3 overflow-x-auto pb-1">
-						{returnSteps.map((item, index) => (
-							<StepCard
-								key={item.title}
-								index={index}
-								title={item.title}
-								description={item.description}
-								active={step === index}
-								completed={stepCompleted[index]}
-							/>
-						))}
+						<div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+							{returnSteps.map((item, index) => (
+								<StepCard
+									key={item.title}
+									index={index}
+									title={item.title}
+									description={item.description}
+									active={step === index}
+									completed={stepCompleted[index]}
+								/>
+							))}
+						</div>
 					</div>
 				</div>
+			</div>
 
-				{step === 0 ? renderCheckInStep() : null}
-				{step === 1 ? renderPhotosStep() : null}
-				{step === 2 ? renderDamageAndExpensesStep() : null}
-				{step === 3 ? renderSettlementStep() : null}
-				{step === 4 ? renderDepositAndFinishStep() : null}
+			<div className="min-h-0 flex-1 overflow-y-auto">
+				<div className="mx-auto flex w-full max-w-390 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+					{step === 0 ? renderCheckInStep() : null}
+					{step === 1 ? renderPhotosStep() : null}
+					{step === 2 ? renderDamageAndExpensesStep() : null}
+					{step === 3 ? renderSettlementStep() : null}
+					{step === 4 ? renderDepositAndFinishStep() : null}
+				</div>
+			</div>
 
-				<div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+			<div className="shrink-0 border-t bg-background/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8">
+				<div className="mx-auto flex w-full max-w-390 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<Button
 						type="button"
 						variant="outline"
@@ -2365,6 +2363,24 @@ export function RentalReturnDrawer({
 					) : null}
 				</div>
 			</div>
-		</ResponsiveDrawer>
+		</>
+	)
+
+	return (
+		<Drawer open={open} onOpenChange={onOpenChange}>
+			<DrawerContent
+				fullHeight
+				className="overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.08),transparent_28%),linear-gradient(to_bottom,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]"
+			>
+				<DrawerHeader className="sr-only">
+					<DrawerTitle>Vehicle return</DrawerTitle>
+					<DrawerDescription>
+						Guide the branch through check-in, evidence, charges, balance, and
+						deposit resolution in one place.
+					</DrawerDescription>
+				</DrawerHeader>
+				{drawerBody}
+			</DrawerContent>
+		</Drawer>
 	)
 }

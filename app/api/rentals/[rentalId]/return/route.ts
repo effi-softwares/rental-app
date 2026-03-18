@@ -66,7 +66,11 @@ export async function POST(request: Request, { params }: RouteProps) {
 	}
 
 	const [returnInspection] = await db
-		.select({ id: rentalInspection.id })
+		.select({
+			id: rentalInspection.id,
+			conditionRating: rentalInspection.conditionRating,
+			mediaJson: rentalInspection.mediaJson,
+		})
 		.from(rentalInspection)
 		.where(
 			and(
@@ -80,6 +84,23 @@ export async function POST(request: Request, { params }: RouteProps) {
 	if (!returnInspection) {
 		return jsonError(
 			"Save the return inspection before completing the return.",
+			400,
+		)
+	}
+
+	if (!returnInspection.conditionRating) {
+		return jsonError(
+			"Add the return condition rating before completing the return.",
+			400,
+		)
+	}
+
+	if (
+		!Array.isArray(returnInspection.mediaJson) ||
+		returnInspection.mediaJson.length === 0
+	) {
+		return jsonError(
+			"Add at least one return photo or video before completing the return.",
 			400,
 		)
 	}

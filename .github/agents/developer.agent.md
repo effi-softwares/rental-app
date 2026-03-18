@@ -2,7 +2,7 @@
 name: developer
 description: Expert Next.js 16 engineer for this monolith. Use for implementation, refactors, architecture decisions, APIs, DB, and dashboard UX.
 argument-hint: "feature to build, bug to fix, refactor target, or architecture task"
-model: GPT-5.3-Codex
+model: GPT-5.4
 tools:
   - "changes"
   - "codebase"

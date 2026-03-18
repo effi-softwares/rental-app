@@ -6,6 +6,7 @@ import { requireViewer } from "@/lib/api/guards"
 import { db } from "@/lib/db"
 import {
 	rental,
+	rentalInspection,
 	rentalPayment,
 	rentalPaymentSchedule,
 } from "@/lib/db/schema/rentals"
@@ -54,6 +55,26 @@ export async function POST(request: Request, { params }: RouteProps) {
 
 	if (!scopedRental.record.selectedPaymentMethodType) {
 		return jsonError("Payment method setup is missing for this rental.", 400)
+	}
+
+	const pickupInspection = await db
+		.select({ id: rentalInspection.id })
+		.from(rentalInspection)
+		.where(
+			and(
+				eq(rentalInspection.organizationId, viewer.activeOrganizationId),
+				eq(rentalInspection.rentalId, scopedRental.record.id),
+				eq(rentalInspection.stage, "pickup"),
+			),
+		)
+		.limit(1)
+		.then((rows) => rows[0] ?? null)
+
+	if (!pickupInspection) {
+		return jsonError(
+			"Save the handover inspection before activating this rental.",
+			400,
+		)
 	}
 
 	const payload = (await request.json().catch(() => ({}))) as {

@@ -107,6 +107,13 @@ export const rentalInspectionCleanlinessEnum = pgEnum(
 	["clean", "needs_attention", "dirty"],
 )
 
+export const rentalConditionRatingEnum = pgEnum("rental_condition_rating", [
+	"excellent",
+	"good",
+	"fair",
+	"poor",
+])
+
 export const rentalDamageCategoryEnum = pgEnum("rental_damage_category", [
 	"exterior",
 	"interior",
@@ -587,6 +594,7 @@ export const rentalInspection = pgTable(
 		odometerKm: numeric("odometer_km", { precision: 12, scale: 2 }),
 		fuelPercent: numeric("fuel_percent", { precision: 5, scale: 2 }),
 		cleanliness: rentalInspectionCleanlinessEnum("cleanliness"),
+		conditionRating: rentalConditionRatingEnum("condition_rating"),
 		checklistJson: jsonb("checklist_json")
 			.$type<Record<string, boolean>>()
 			.default({})

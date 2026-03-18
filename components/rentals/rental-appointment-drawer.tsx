@@ -44,6 +44,7 @@ import {
 	type RentalAlternativeMatchMode,
 	type RentalCollectionTiming,
 	type RentalCommitPayload,
+	type RentalConditionRating,
 	type RentalDetailResponse,
 	type RentalInstallmentInterval,
 	type RentalPaymentMethodType,
@@ -111,6 +112,17 @@ type RentalDrawerValues = {
 		signerName: string
 		signature: string
 		agreementAccepted: boolean
+	}
+	pickupCondition: {
+		changed: boolean
+		rating: RentalConditionRating | null
+		media: Array<{
+			assetId: string
+			deliveryUrl: string
+			blurDataUrl: string
+			label: string | null
+		}>
+		notes: string
 	}
 }
 
@@ -186,6 +198,12 @@ function buildDefaultValues(
 			signature: "",
 			agreementAccepted: false,
 		},
+		pickupCondition: {
+			changed: false,
+			rating: null,
+			media: [],
+			notes: "",
+		},
 	}
 }
 
@@ -206,6 +224,10 @@ function inferTaxRatePercent(detail: RentalDetailResponse) {
 function buildValuesFromDetail(
 	detail: RentalDetailResponse,
 ): RentalDrawerValues {
+	const pickupInspection =
+		detail.inspections.find((inspection) => inspection.stage === "pickup") ??
+		null
+
 	return {
 		vehicleId: detail.rental.vehicleId ?? "",
 		customer: {
@@ -239,6 +261,21 @@ function buildValuesFromDetail(
 			signerName: "",
 			signature: "",
 			agreementAccepted: Boolean(detail.agreement?.signedAt),
+		},
+		pickupCondition: {
+			changed: Boolean(
+				pickupInspection?.conditionRating ||
+					(pickupInspection?.media.length ?? 0) > 0,
+			),
+			rating: pickupInspection?.conditionRating ?? null,
+			media:
+				pickupInspection?.media.map((item) => ({
+					assetId: item.assetId,
+					deliveryUrl: item.deliveryUrl,
+					blurDataUrl: item.blurDataUrl ?? "",
+					label: item.label,
+				})) ?? [],
+			notes: pickupInspection?.notes ?? "",
 		},
 	}
 }
@@ -685,8 +722,8 @@ function StepCard({
 	return (
 		<div
 			className={cn(
-				"min-w-[240px] rounded-[26px] border px-4 py-4 transition md:min-w-0",
-				active && "border-primary bg-primary/[0.08] shadow-sm",
+				"min-w-60 rounded-[26px] border px-4 py-4 transition md:min-w-0",
+				active && "border-primary bg-primary/8 shadow-sm",
 				completed && "border-emerald-300 bg-emerald-50",
 			)}
 		>
@@ -733,7 +770,7 @@ function PaymentMethodCard({
 			className={cn(
 				"w-full rounded-[26px] border p-4 text-left transition",
 				selected
-					? "border-primary bg-primary/[0.08] ring-primary/15 ring-4"
+					? "border-primary bg-primary/8 ring-primary/15 ring-4"
 					: "bg-background hover:border-primary/30 hover:shadow-sm",
 			)}
 		>
@@ -1264,6 +1301,7 @@ export function RentalAppointmentDrawer({
 
 		try {
 			setDrawerError(null)
+
 			const result = await finalizeRentalMutation.mutateAsync({
 				rentalId: draftRentalId,
 				payload: {
@@ -1400,10 +1438,10 @@ export function RentalAppointmentDrawer({
 		<Drawer open={open} onOpenChange={onOpenChange}>
 			<DrawerContent
 				fullHeight
-				className="overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_28%),linear-gradient(to_bottom,_rgba(248,250,252,0.96),_rgba(255,255,255,0.98))]"
+				className="overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.08),transparent_28%),linear-gradient(to_bottom,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]"
 			>
 				<div className="shrink-0 border-b bg-background/90 backdrop-blur-sm">
-					<DrawerHeader className="mx-auto w-full max-w-[1560px] px-4 pb-4 pt-5 text-left sm:px-6 lg:px-8">
+					<DrawerHeader className="mx-auto w-full max-w-390 px-4 pb-4 pt-5 text-left sm:px-6 lg:px-8">
 						<DrawerTitle className="text-2xl font-semibold tracking-tight">
 							New rental checkout
 						</DrawerTitle>
@@ -1412,7 +1450,7 @@ export function RentalAppointmentDrawer({
 							and payment method setup before final agreement.
 						</DrawerDescription>
 					</DrawerHeader>
-					<div className="mx-auto w-full max-w-[1560px] px-4 pb-5 sm:px-6 lg:px-8">
+					<div className="mx-auto w-full max-w-390 px-4 pb-5 sm:px-6 lg:px-8">
 						<div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-6 md:overflow-visible">
 							{steps.map((item, index) => (
 								<StepCard
@@ -1429,7 +1467,7 @@ export function RentalAppointmentDrawer({
 				</div>
 
 				<div className="min-h-0 flex-1 overflow-y-auto">
-					<div className="mx-auto flex w-full max-w-[1560px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+					<div className="mx-auto flex w-full max-w-390 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
 						{drawerError ? (
 							<p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
 								{drawerError}
@@ -1567,7 +1605,7 @@ export function RentalAppointmentDrawer({
 													<ToggleGroupItem
 														key={mode}
 														value={mode}
-														className="h-11 rounded-[16px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+														className="h-11 rounded-3xl data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
 													>
 														{formatAvailabilityModeLabel(mode)}
 													</ToggleGroupItem>
@@ -1884,8 +1922,7 @@ export function RentalAppointmentDrawer({
 														className={cn(
 															"rounded-[24px] border p-4 transition",
 															values.customer.matchedCustomerId ===
-																candidate.id &&
-																"border-primary bg-primary/[0.06]",
+																candidate.id && "border-primary bg-primary/6",
 														)}
 													>
 														<div className="flex items-start justify-between gap-4">
@@ -2212,7 +2249,7 @@ export function RentalAppointmentDrawer({
 															</p>
 														</div>
 													</div>
-													<div className="rounded-[24px] border bg-primary/[0.06] p-4">
+													<div className="rounded-[24px] border bg-primary/6 p-4">
 														<p className="text-muted-foreground text-sm">
 															Grand total
 														</p>
@@ -2694,7 +2731,7 @@ export function RentalAppointmentDrawer({
 														{recurringDebugRows.map((row) => (
 															<div
 																key={`review-${row.id}`}
-																className="rounded-[20px] border px-4 py-3"
+																className="rounded-4xl border px-4 py-3"
 															>
 																<p className="font-semibold">
 																	#{row.sequence} {row.label}
@@ -2721,7 +2758,7 @@ export function RentalAppointmentDrawer({
 				</div>
 
 				<DrawerFooter className="shrink-0 border-t bg-background/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8">
-					<div className="mx-auto flex w-full max-w-[1560px] flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div className="mx-auto flex w-full max-w-390 flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<Button
 							type="button"
 							variant="outline"

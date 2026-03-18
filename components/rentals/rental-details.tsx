@@ -39,18 +39,14 @@ import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-qu
 import {
 	type RentalChargeKind,
 	type RentalChargeSummary,
-	type RentalDamageCategory,
-	type RentalDamageSeverity,
 	useCollectCashPaymentMutation,
 	useCollectRentalChargeMutation,
 	useCreateRentalChargeMutation,
 	useExtendRentalMutation,
 	useFinalizeRentalMutation,
-	useHandoverRentalMutation,
 	usePrepareRentalPaymentMutation,
 	useRentalDraftQuery,
 	useResolveRentalDepositMutation,
-	useSaveRentalInspectionMutation,
 } from "@/features/rentals"
 import {
 	getRentalAttentionMessages,
@@ -61,6 +57,7 @@ import {
 import { resolveErrorMessage } from "@/lib/errors"
 import { isPrivilegedFleetRole } from "@/lib/fleet/live"
 import { RentalAppointmentDrawer } from "./rental-appointment-drawer"
+import { RentalHandoverDrawer } from "./rental-handover-drawer"
 import { RentalPaymentAuBecsForm } from "./rental-payment-au-becs-form"
 import { RentalPaymentTerminalPanel } from "./rental-payment-terminal-panel"
 import { RentalReturnDrawer } from "./rental-return-drawer"
@@ -70,7 +67,7 @@ type RentalDetailsProps = {
 }
 
 type BillingPanel = "collect" | "deposit" | "charges" | "history"
-type OperationsPanel = "pickup" | "extend" | "return"
+type OperationsPanel = "handover" | "extend" | "return"
 
 function formatCurrency(amount: number, currency: string) {
 	return new Intl.NumberFormat("en-AU", {
@@ -209,6 +206,71 @@ function DetailPair({
 	)
 }
 
+function formatConditionRatingLabel(value: string | null) {
+	if (!value) {
+		return "Not recorded"
+	}
+
+	return value.replaceAll("_", " ")
+}
+
+function formatInspectionMetricDelta(
+	pickupValue: number | null,
+	returnValue: number | null,
+	unit: string,
+) {
+	if (pickupValue == null && returnValue == null) {
+		return {
+			value: "Not recorded",
+			hint: "No pickup or return value is available yet.",
+		}
+	}
+
+	if (pickupValue == null || returnValue == null) {
+		return {
+			value: `${pickupValue ?? returnValue} ${unit}`,
+			hint: "Both pickup and return values are needed to show the delta.",
+		}
+	}
+
+	const delta = Number((returnValue - pickupValue).toFixed(2))
+	const deltaLabel =
+		delta === 0 ? `No change` : `${delta > 0 ? "+" : ""}${delta} ${unit}`
+
+	return {
+		value: `${returnValue} ${unit}`,
+		hint: `Pickup ${pickupValue} ${unit} -> Return ${returnValue} ${unit} (${deltaLabel})`,
+	}
+}
+
+function formatInspectionTextDelta(
+	label: string,
+	pickupValue: string | null,
+	returnValue: string | null,
+) {
+	if (!pickupValue && !returnValue) {
+		return {
+			value: "Not recorded",
+			hint: `No ${label.toLowerCase()} value is available yet.`,
+		}
+	}
+
+	if (!pickupValue || !returnValue) {
+		return {
+			value: returnValue ?? pickupValue ?? "Not recorded",
+			hint: `Both pickup and return ${label.toLowerCase()} values are needed to show change.`,
+		}
+	}
+
+	return {
+		value: returnValue,
+		hint:
+			pickupValue === returnValue
+				? `No change from pickup (${pickupValue}).`
+				: `Pickup ${pickupValue} -> Return ${returnValue}`,
+	}
+}
+
 function PanelToggle({
 	value,
 	activeValue,
@@ -251,8 +313,6 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	const finalizeMutation = useFinalizeRentalMutation(organizationId)
 	const preparePaymentMutation = usePrepareRentalPaymentMutation(organizationId)
 	const collectCashMutation = useCollectCashPaymentMutation(organizationId)
-	const handoverMutation = useHandoverRentalMutation(organizationId)
-	const inspectionMutation = useSaveRentalInspectionMutation(organizationId)
 	const extendMutation = useExtendRentalMutation(organizationId)
 	const createChargeMutation = useCreateRentalChargeMutation(organizationId)
 	const collectChargeMutation = useCollectRentalChargeMutation(organizationId)
@@ -263,7 +323,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	const [activeBillingPanel, setActiveBillingPanel] =
 		useState<BillingPanel>("collect")
 	const [activeOperationsPanel, setActiveOperationsPanel] =
-		useState<OperationsPanel>("pickup")
+		useState<OperationsPanel>("handover")
 	const [isEditOpen, setIsEditOpen] = useState(false)
 	const [isFinalizeOpen, setIsFinalizeOpen] = useState(false)
 	const [isHandoverOpen, setIsHandoverOpen] = useState(false)
@@ -273,7 +333,6 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		"cash" | "card" | "au_becs_debit"
 	>("cash")
 	const [scheduleAmountTendered, setScheduleAmountTendered] = useState("")
-	const [handoverAmountTendered, setHandoverAmountTendered] = useState("")
 	const [chargeToCollect, setChargeToCollect] =
 		useState<RentalChargeSummary | null>(null)
 	const [chargeCollectionMethod, setChargeCollectionMethod] = useState<
@@ -289,14 +348,6 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	} | null>(null)
 	const [signerName, setSignerName] = useState("")
 	const [signature, setSignature] = useState("")
-	const [pickupNotes, setPickupNotes] = useState("")
-	const [pickupOdometer, setPickupOdometer] = useState("")
-	const [pickupFuelPercent, setPickupFuelPercent] = useState("")
-	const [pickupDamageTitle, setPickupDamageTitle] = useState("")
-	const [pickupDamageCategory, setPickupDamageCategory] =
-		useState<RentalDamageCategory>("exterior")
-	const [pickupDamageSeverity, setPickupDamageSeverity] =
-		useState<RentalDamageSeverity>("minor")
 	const [extensionDate, setExtensionDate] = useState("")
 	const [extensionReason, setExtensionReason] = useState("")
 	const [newChargeKind, setNewChargeKind] = useState<RentalChargeKind>("damage")
@@ -329,7 +380,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 				: "",
 		)
 		setActiveOperationsPanel(
-			detail.rental.status === "active" ? "return" : "pickup",
+			detail.rental.status === "active" ? "return" : "handover",
 		)
 	}, [detail])
 
@@ -339,6 +390,12 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		detail?.extraCharges.filter(
 			(row) => row.status === "open" || row.status === "partially_paid",
 		) ?? []
+	const pickupInspection =
+		detail?.inspections.find((inspection) => inspection.stage === "pickup") ??
+		null
+	const returnInspection =
+		detail?.inspections.find((inspection) => inspection.stage === "return") ??
+		null
 
 	const paymentSummary = useMemo(() => {
 		if (!detail) {
@@ -424,75 +481,6 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 			void rentalDetailQuery.refetch()
 		} catch (error) {
 			toast.error(resolveErrorMessage(error, "Failed to finalize rental."))
-		}
-	}
-
-	async function handleHandover() {
-		try {
-			if (
-				detail?.rental.selectedPaymentMethodType === "cash" &&
-				detail.rental.firstCollectionTiming === "handover" &&
-				(!handoverAmountTendered.trim() || Number(handoverAmountTendered) <= 0)
-			) {
-				toast.error("Enter the cash amount collected at handover.")
-				return
-			}
-
-			await handoverMutation.mutateAsync({
-				rentalId,
-				payload:
-					detail?.rental.selectedPaymentMethodType === "cash" &&
-					detail.rental.firstCollectionTiming === "handover"
-						? {
-								amountTendered: Number(handoverAmountTendered),
-							}
-						: {},
-			})
-			setHandoverAmountTendered("")
-			setIsHandoverOpen(false)
-			toast.success("Rental handed over.")
-			void rentalDetailQuery.refetch()
-		} catch (error) {
-			toast.error(resolveErrorMessage(error, "Failed to hand over rental."))
-		}
-	}
-
-	async function handleSaveInspection() {
-		try {
-			await inspectionMutation.mutateAsync({
-				rentalId,
-				stage: "pickup",
-				payload: {
-					stage: "pickup",
-					odometerKm: Number(pickupOdometer || "0"),
-					fuelPercent: Number(pickupFuelPercent || "0"),
-					cleanliness: "clean",
-					checklist: {
-						exteriorChecked: true,
-						interiorChecked: true,
-						keysReceived: true,
-					},
-					notes: pickupNotes,
-					damages:
-						pickupDamageTitle.trim().length > 0
-							? [
-									{
-										category: pickupDamageCategory,
-										title: pickupDamageTitle,
-										severity: pickupDamageSeverity,
-									},
-								]
-							: [],
-				},
-			})
-			setPickupNotes("")
-			setPickupOdometer("")
-			setPickupFuelPercent("")
-			setPickupDamageTitle("")
-			toast.success("Pickup inspection saved.")
-			void rentalDetailQuery.refetch()
-		} catch (error) {
-			toast.error(resolveErrorMessage(error, "Failed to save inspection."))
 		}
 	}
 
@@ -978,18 +966,92 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 							</CardHeader>
 							<CardContent className="grid gap-3 md:grid-cols-2">
 								<DetailPair
-									label="Pickup inspection"
+									label="Handover inspection"
 									value={
 										detail.actionState.missingPickupInspection
 											? "Still missing"
 											: "Recorded"
 									}
-									hint="Pickup checks should be complete before handover."
+									hint="The handover flow records start-of-rental checks before activation."
 								/>
 								<DetailPair
-									label="All inspections"
-									value={String(detail.inspections.length)}
-									hint="Pickup and return inspections are both tracked here."
+									label="Latest vehicle condition"
+									value={
+										detail.vehicle?.latestConditionSnapshot
+											? formatConditionRatingLabel(
+													detail.vehicle.latestConditionSnapshot.rating,
+												)
+											: "Not recorded"
+									}
+									hint={
+										detail.vehicle?.latestConditionSnapshot
+											? `Latest baseline from ${detail.vehicle.latestConditionSnapshot.inspectionStage} inspection.`
+											: "The latest vehicle baseline updates when a handover condition change is logged or a return inspection is saved."
+									}
+								/>
+								<DetailPair
+									label="Condition rating delta"
+									value={formatConditionRatingLabel(
+										returnInspection?.conditionRating ?? null,
+									)}
+									hint={
+										formatInspectionTextDelta(
+											"condition rating",
+											pickupInspection?.conditionRating ?? null,
+											returnInspection?.conditionRating ?? null,
+										).hint
+									}
+								/>
+								<DetailPair
+									label="Odometer delta"
+									value={
+										formatInspectionMetricDelta(
+											pickupInspection?.odometerKm ?? null,
+											returnInspection?.odometerKm ?? null,
+											"km",
+										).value
+									}
+									hint={
+										formatInspectionMetricDelta(
+											pickupInspection?.odometerKm ?? null,
+											returnInspection?.odometerKm ?? null,
+											"km",
+										).hint
+									}
+								/>
+								<DetailPair
+									label="Fuel delta"
+									value={
+										formatInspectionMetricDelta(
+											pickupInspection?.fuelPercent ?? null,
+											returnInspection?.fuelPercent ?? null,
+											"%",
+										).value
+									}
+									hint={
+										formatInspectionMetricDelta(
+											pickupInspection?.fuelPercent ?? null,
+											returnInspection?.fuelPercent ?? null,
+											"%",
+										).hint
+									}
+								/>
+								<DetailPair
+									label="Cleanliness delta"
+									value={
+										formatInspectionTextDelta(
+											"cleanliness",
+											pickupInspection?.cleanliness ?? null,
+											returnInspection?.cleanliness ?? null,
+										).value
+									}
+									hint={
+										formatInspectionTextDelta(
+											"cleanliness",
+											pickupInspection?.cleanliness ?? null,
+											returnInspection?.cleanliness ?? null,
+										).hint
+									}
 								/>
 								<DetailPair
 									label="Damage items"
@@ -1172,7 +1234,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 													onChange={(event) => {
 														setScheduleAmountTendered(event.target.value)
 													}}
-													className="max-w-[240px]"
+													className="max-w-60"
 													placeholder="Amount tendered"
 												/>
 												<Button
@@ -1619,9 +1681,9 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 						</CardHeader>
 						<CardContent className="flex flex-wrap gap-2">
 							<PanelToggle
-								value="pickup"
+								value="handover"
 								activeValue={activeOperationsPanel}
-								onClick={() => setActiveOperationsPanel("pickup")}
+								onClick={() => setActiveOperationsPanel("handover")}
 							/>
 							<PanelToggle
 								value="extend"
@@ -1636,94 +1698,61 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 						</CardContent>
 					</Card>
 
-					{activeOperationsPanel === "pickup" ? (
+					{activeOperationsPanel === "handover" ? (
 						<div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
 							<Card>
 								<CardHeader>
-									<CardTitle>Pickup inspection</CardTitle>
+									<CardTitle>Handover inspection</CardTitle>
 									<CardDescription>
-										Capture vehicle condition before the customer leaves with
-										the vehicle.
+										The guided handover flow now owns start-of-rental readings,
+										optional condition proof, and activation.
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-3">
+									<div className="rounded-2xl border bg-muted/20 p-4 text-sm">
+										<p className="font-medium">Use the guided handover flow</p>
+										<p className="text-muted-foreground mt-1">
+											Start-of-rental readings, optional condition proof, and
+											the final activation action now live in one full-screen
+											flow so staff do not have to save a pickup record
+											separately first.
+										</p>
+									</div>
 									<div className="grid gap-3 md:grid-cols-2">
-										<Input
-											value={pickupOdometer}
-											onChange={(event) => {
-												setPickupOdometer(event.target.value)
-											}}
-											placeholder="Odometer km"
+										<DetailPair
+											label="Recorded start inspection"
+											value={
+												detail.actionState.missingPickupInspection
+													? "Still missing"
+													: "Recorded"
+											}
+											hint="The handover drawer will save this record before activation."
 										/>
-										<Input
-											value={pickupFuelPercent}
-											onChange={(event) => {
-												setPickupFuelPercent(event.target.value)
-											}}
-											placeholder="Fuel %"
-										/>
-									</div>
-									<Textarea
-										value={pickupNotes}
-										onChange={(event) => {
-											setPickupNotes(event.target.value)
-										}}
-										placeholder="Pickup notes"
-									/>
-									<div className="grid gap-3 md:grid-cols-3">
-										<select
-											className="h-11 rounded-md border px-3"
-											value={pickupDamageCategory}
-											onChange={(event) => {
-												setPickupDamageCategory(
-													event.target.value as RentalDamageCategory,
-												)
-											}}
-										>
-											<option value="exterior">Exterior damage</option>
-											<option value="interior">Interior damage</option>
-											<option value="mechanical">Mechanical issue</option>
-											<option value="other">Other</option>
-										</select>
-										<select
-											className="h-11 rounded-md border px-3"
-											value={pickupDamageSeverity}
-											onChange={(event) => {
-												setPickupDamageSeverity(
-													event.target.value as RentalDamageSeverity,
-												)
-											}}
-										>
-											<option value="minor">Minor</option>
-											<option value="moderate">Moderate</option>
-											<option value="severe">Severe</option>
-										</select>
-										<Input
-											value={pickupDamageTitle}
-											onChange={(event) => {
-												setPickupDamageTitle(event.target.value)
-											}}
-											placeholder="Optional damage note"
+										<DetailPair
+											label="Latest vehicle baseline"
+											value={
+												detail.vehicle?.latestConditionSnapshot
+													? formatConditionRatingLabel(
+															detail.vehicle.latestConditionSnapshot.rating,
+														)
+													: "Not recorded"
+											}
+											hint={
+												detail.vehicle?.latestConditionSnapshot
+													? `Latest baseline from ${detail.vehicle.latestConditionSnapshot.inspectionStage} inspection.`
+													: "The handover flow can record optional proof if the vehicle differs from the latest baseline."
+											}
 										/>
 									</div>
-									<Button
-										type="button"
-										onClick={() => {
-											void handleSaveInspection()
-										}}
-										disabled={inspectionMutation.isPending}
-									>
-										Save pickup inspection
-									</Button>
 								</CardContent>
 							</Card>
 
 							<Card>
 								<CardHeader>
-									<CardTitle>Pickup readiness</CardTitle>
+									<CardTitle>Handover readiness</CardTitle>
 									<CardDescription>
-										Make sure the team sees whether handover can happen now or
-										if something is still missing.
+										Make sure the team sees whether handover can happen now and
+										which blockers the guided flow still needs to clear.
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-3">
@@ -1731,8 +1760,8 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 										label="Inspection status"
 										value={
 											detail.actionState.missingPickupInspection
-												? "Inspection is still missing."
-												: "Inspection is recorded."
+												? "Will be recorded during handover."
+												: "Already recorded."
 										}
 									/>
 									<DetailPair
@@ -1750,7 +1779,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 										}}
 										disabled={!detail.actionState.canHandover}
 									>
-										Handover vehicle
+										Open handover flow
 									</Button>
 								</CardContent>
 							</Card>
@@ -2020,63 +2049,15 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 				</div>
 			</ResponsiveDrawer>
 
-			<ResponsiveDrawer
+			<RentalHandoverDrawer
 				open={isHandoverOpen}
 				onOpenChange={setIsHandoverOpen}
-				title="Handover vehicle"
-				description="Use this step when pickup checks are complete and the customer is ready to leave with the vehicle."
-			>
-				<div className="space-y-4">
-					<div className="rounded-2xl border bg-muted/20 p-4">
-						<p className="text-sm font-medium">
-							Customer: {detail.customer?.fullName ?? "Customer pending"}
-						</p>
-						<p className="text-muted-foreground mt-1 text-sm">
-							Vehicle: {detail.vehicle?.label ?? "Vehicle pending"}
-						</p>
-					</div>
-					{detail.rental.selectedPaymentMethodType === "cash" &&
-					detail.rental.firstCollectionTiming === "handover" ? (
-						<div className="space-y-2">
-							<label className="text-sm font-medium" htmlFor="handover-amount">
-								Cash collected now
-							</label>
-							<Input
-								id="handover-amount"
-								value={handoverAmountTendered}
-								onChange={(event) => {
-									setHandoverAmountTendered(event.target.value)
-								}}
-								placeholder="Amount tendered"
-							/>
-							<p className="text-muted-foreground text-sm">
-								Enter the amount collected at the desk so handover can complete
-								cleanly.
-							</p>
-						</div>
-					) : null}
-					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => setIsHandoverOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button
-							type="button"
-							onClick={() => {
-								void handleHandover()
-							}}
-							disabled={
-								!detail.actionState.canHandover || handoverMutation.isPending
-							}
-						>
-							{handoverMutation.isPending ? "Saving..." : "Handover vehicle"}
-						</Button>
-					</div>
-				</div>
-			</ResponsiveDrawer>
+				rentalId={rentalId}
+				detail={detail}
+				onUpdated={async () => {
+					await rentalDetailQuery.refetch()
+				}}
+			/>
 
 			<RentalReturnDrawer
 				open={isReturnFlowOpen}
