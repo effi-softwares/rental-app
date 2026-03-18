@@ -1,6 +1,17 @@
 CREATE TYPE "public"."vehicle_telemetry_source" AS ENUM('mock', 'traccar');--> statement-breakpoint
 CREATE TYPE "public"."vehicle_tracking_provider" AS ENUM('traccar', 'mock', 'custom');--> statement-breakpoint
+CREATE TYPE "public"."rental_amendment_type" AS ENUM('schedule_change', 'extension', 'early_return');--> statement-breakpoint
+CREATE TYPE "public"."rental_charge_kind" AS ENUM('extension', 'damage', 'fine', 'toll', 'fuel', 'cleaning', 'late_return', 'other');--> statement-breakpoint
+CREATE TYPE "public"."rental_charge_status" AS ENUM('open', 'partially_paid', 'paid', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."rental_collection_timing" AS ENUM('setup', 'handover');--> statement-breakpoint
+CREATE TYPE "public"."rental_condition_rating" AS ENUM('excellent', 'good', 'fair', 'poor');--> statement-breakpoint
+CREATE TYPE "public"."rental_damage_category" AS ENUM('exterior', 'interior', 'mechanical', 'other');--> statement-breakpoint
+CREATE TYPE "public"."rental_damage_repair_status" AS ENUM('reported', 'approved', 'repaired', 'waived');--> statement-breakpoint
+CREATE TYPE "public"."rental_damage_severity" AS ENUM('minor', 'moderate', 'severe');--> statement-breakpoint
+CREATE TYPE "public"."rental_deposit_event_type" AS ENUM('hold_collected', 'released', 'retained', 'applied_to_charge', 'refunded');--> statement-breakpoint
+CREATE TYPE "public"."rental_inspection_cleanliness" AS ENUM('clean', 'needs_attention', 'dirty');--> statement-breakpoint
+CREATE TYPE "public"."rental_inspection_stage" AS ENUM('pickup', 'return');--> statement-breakpoint
+CREATE TYPE "public"."rental_installment_interval" AS ENUM('week', 'month');--> statement-breakpoint
 CREATE TYPE "public"."rental_invoice_collection_method" AS ENUM('charge_automatically', 'send_invoice', 'out_of_band');--> statement-breakpoint
 CREATE TYPE "public"."rental_invoice_status" AS ENUM('draft', 'open', 'paid', 'void', 'uncollectible', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."rental_payment_attempt_kind" AS ENUM('payment_method_setup', 'schedule_collection');--> statement-breakpoint
@@ -10,8 +21,11 @@ CREATE TYPE "public"."rental_payment_plan_kind" AS ENUM('single', 'installment')
 CREATE TYPE "public"."rental_payment_schedule_status" AS ENUM('pending', 'processing', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."rental_payment_status" AS ENUM('pending', 'requires_action', 'processing', 'succeeded', 'failed', 'refunded', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."rental_pricing_bucket" AS ENUM('day', 'week', 'month');--> statement-breakpoint
+CREATE TYPE "public"."rental_recurring_billing_state" AS ENUM('none', 'pending_setup', 'ready_to_schedule', 'scheduled_in_stripe', 'active_in_stripe', 'past_due', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."rental_status" AS ENUM('draft', 'awaiting_payment', 'scheduled', 'active', 'completed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."rental_stored_payment_method_status" AS ENUM('none', 'pending', 'ready', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."vehicle_availability_block_source" AS ENUM('rental', 'draft_hold', 'maintenance', 'prep_before', 'prep_after', 'manual_hold', 'blackout');--> statement-breakpoint
+CREATE TYPE "public"."vehicle_availability_block_status" AS ENUM('active', 'released', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."distance_unit" AS ENUM('km', 'miles');--> statement-breakpoint
 CREATE TYPE "public"."drivetrain" AS ENUM('FWD', 'RWD', 'AWD', '4WD', 'Electric-Single', 'Electric-Dual');--> statement-breakpoint
 CREATE TYPE "public"."fuel_type" AS ENUM('Petrol', 'Diesel', 'Electric', 'Hybrid', 'Hydrogen');--> statement-breakpoint
@@ -21,7 +35,7 @@ CREATE TYPE "public"."transmission" AS ENUM('Automatic', 'Manual', 'Semi-Automat
 CREATE TYPE "public"."vehicle_status" AS ENUM('Available', 'Rented', 'Maintenance', 'Retired');--> statement-breakpoint
 CREATE TYPE "public"."stripe_webhook_event_status" AS ENUM('received', 'processed', 'ignored', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."workspace_realtime_attention" AS ENUM('none', 'info', 'warning', 'critical');--> statement-breakpoint
-CREATE TYPE "public"."workspace_realtime_topic" AS ENUM('billing', 'rentals');--> statement-breakpoint
+CREATE TYPE "public"."workspace_realtime_topic" AS ENUM('billing_attention', 'rentals');--> statement-breakpoint
 CREATE TABLE "app_settings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"key" text NOT NULL,
@@ -135,6 +149,7 @@ CREATE TABLE "user" (
 	"ban_expires" timestamp,
 	"two_factor_enabled" boolean DEFAULT false,
 	"requires_password_setup" boolean DEFAULT false,
+	"active_organization_id" uuid,
 	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
@@ -290,10 +305,11 @@ CREATE TABLE "rental" (
 	"pricing_bucket" "rental_pricing_bucket",
 	"payment_plan_kind" "rental_payment_plan_kind" DEFAULT 'single' NOT NULL,
 	"first_collection_timing" "rental_collection_timing" DEFAULT 'setup' NOT NULL,
-	"installment_interval" "rental_pricing_bucket",
+	"installment_interval" "rental_installment_interval",
 	"installment_count" integer,
 	"selected_payment_method_type" "rental_payment_method_type",
 	"stored_payment_method_status" "rental_stored_payment_method_status" DEFAULT 'none' NOT NULL,
+	"recurring_billing_state" "rental_recurring_billing_state" DEFAULT 'none' NOT NULL,
 	"deposit_required" boolean DEFAULT false NOT NULL,
 	"deposit_amount" numeric(12, 2),
 	"notes" text,
@@ -319,6 +335,81 @@ CREATE TABLE "rental_agreement" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "rental_amendment" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"branch_id" uuid,
+	"rental_id" uuid NOT NULL,
+	"type" "rental_amendment_type" NOT NULL,
+	"previous_planned_start_at" timestamp with time zone,
+	"previous_planned_end_at" timestamp with time zone,
+	"next_planned_start_at" timestamp with time zone,
+	"next_planned_end_at" timestamp with time zone,
+	"delta_amount" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+	"currency" text DEFAULT 'AUD' NOT NULL,
+	"pricing_snapshot_id" uuid,
+	"reason" text,
+	"created_by_member_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "rental_charge" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"branch_id" uuid,
+	"rental_id" uuid NOT NULL,
+	"linked_damage_id" uuid,
+	"linked_payment_id" uuid,
+	"kind" "rental_charge_kind" NOT NULL,
+	"status" "rental_charge_status" DEFAULT 'open' NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"tax_amount" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+	"total" numeric(12, 2) NOT NULL,
+	"currency" text DEFAULT 'AUD' NOT NULL,
+	"due_at" timestamp with time zone,
+	"description" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "rental_damage" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"branch_id" uuid,
+	"rental_id" uuid NOT NULL,
+	"inspection_id" uuid,
+	"category" "rental_damage_category" NOT NULL,
+	"title" text NOT NULL,
+	"description" text,
+	"severity" "rental_damage_severity" NOT NULL,
+	"customer_liability_amount" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+	"estimated_cost" numeric(12, 2),
+	"actual_cost" numeric(12, 2),
+	"repair_status" "rental_damage_repair_status" DEFAULT 'reported' NOT NULL,
+	"media_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"occurred_at" timestamp with time zone,
+	"repaired_at" timestamp with time zone,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "rental_deposit_event" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"branch_id" uuid,
+	"rental_id" uuid NOT NULL,
+	"type" "rental_deposit_event_type" NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"currency" text DEFAULT 'AUD' NOT NULL,
+	"linked_charge_id" uuid,
+	"linked_payment_id" uuid,
+	"note" text,
+	"created_by_member_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "rental_event" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -328,6 +419,26 @@ CREATE TABLE "rental_event" (
 	"payload_json" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"actor_member_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "rental_inspection" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"branch_id" uuid,
+	"rental_id" uuid NOT NULL,
+	"stage" "rental_inspection_stage" NOT NULL,
+	"odometer_km" numeric(12, 2),
+	"fuel_percent" numeric(5, 2),
+	"cleanliness" "rental_inspection_cleanliness",
+	"condition_rating" "rental_condition_rating",
+	"checklist_json" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"notes" text,
+	"signature_payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"media_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"completed_by_member_id" uuid,
+	"completed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "rental_invoice" (
@@ -410,6 +521,9 @@ CREATE TABLE "rental_payment_schedule" (
 	"status" "rental_payment_schedule_status" DEFAULT 'pending' NOT NULL,
 	"payment_method_type" "rental_payment_method_type",
 	"is_first_charge" boolean DEFAULT false NOT NULL,
+	"stripe_invoice_id" text,
+	"stripe_subscription_id" text,
+	"failure_reason" text,
 	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"settled_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -435,12 +549,32 @@ CREATE TABLE "rental_pricing_snapshot" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "vehicle_availability_block" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"branch_id" uuid,
+	"vehicle_id" uuid NOT NULL,
+	"rental_id" uuid,
+	"source_type" "vehicle_availability_block_source" DEFAULT 'manual_hold' NOT NULL,
+	"status" "vehicle_availability_block_status" DEFAULT 'active' NOT NULL,
+	"starts_at" timestamp with time zone NOT NULL,
+	"ends_at" timestamp with time zone NOT NULL,
+	"expires_at" timestamp with time zone,
+	"note" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_by_member_id" uuid,
+	"updated_by_member_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "vehicle" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"branch_id" uuid,
 	"brand_id" uuid NOT NULL,
 	"model_id" uuid NOT NULL,
+	"vehicle_class_id" uuid,
 	"body_type_id" uuid,
 	"year" integer NOT NULL,
 	"vin" text NOT NULL,
@@ -462,6 +596,7 @@ CREATE TABLE "vehicle" (
 	"insurance_expiry_date" date NOT NULL,
 	"insurance_policy_number" text NOT NULL,
 	"images" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"latest_condition_snapshot" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -471,6 +606,17 @@ CREATE TABLE "vehicle_brand" (
 	"name" text NOT NULL,
 	"country" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "vehicle_class" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"code" text NOT NULL,
+	"description" text,
+	"body_type_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "vehicle_model" (
@@ -543,7 +689,9 @@ ALTER TABLE "member" ADD CONSTRAINT "member_user_id_user_id_fk" FOREIGN KEY ("us
 ALTER TABLE "organization_role" ADD CONSTRAINT "organization_role_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "passkey" ADD CONSTRAINT "passkey_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session" ADD CONSTRAINT "session_active_organization_id_organization_id_fk" FOREIGN KEY ("active_organization_id") REFERENCES "public"."organization"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "two_factor" ADD CONSTRAINT "two_factor_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user" ADD CONSTRAINT "user_active_organization_id_organization_id_fk" FOREIGN KEY ("active_organization_id") REFERENCES "public"."organization"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "branch" ADD CONSTRAINT "branch_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_branch_access" ADD CONSTRAINT "member_branch_access_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_branch_access" ADD CONSTRAINT "member_branch_access_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -576,10 +724,34 @@ ALTER TABLE "rental_agreement" ADD CONSTRAINT "rental_agreement_organization_id_
 ALTER TABLE "rental_agreement" ADD CONSTRAINT "rental_agreement_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_agreement" ADD CONSTRAINT "rental_agreement_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_agreement" ADD CONSTRAINT "rental_agreement_signed_by_member_id_member_id_fk" FOREIGN KEY ("signed_by_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_amendment" ADD CONSTRAINT "rental_amendment_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_amendment" ADD CONSTRAINT "rental_amendment_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_amendment" ADD CONSTRAINT "rental_amendment_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_amendment" ADD CONSTRAINT "rental_amendment_pricing_snapshot_id_rental_pricing_snapshot_id_fk" FOREIGN KEY ("pricing_snapshot_id") REFERENCES "public"."rental_pricing_snapshot"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_amendment" ADD CONSTRAINT "rental_amendment_created_by_member_id_member_id_fk" FOREIGN KEY ("created_by_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_charge" ADD CONSTRAINT "rental_charge_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_charge" ADD CONSTRAINT "rental_charge_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_charge" ADD CONSTRAINT "rental_charge_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_charge" ADD CONSTRAINT "rental_charge_linked_damage_id_rental_damage_id_fk" FOREIGN KEY ("linked_damage_id") REFERENCES "public"."rental_damage"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_charge" ADD CONSTRAINT "rental_charge_linked_payment_id_rental_payment_id_fk" FOREIGN KEY ("linked_payment_id") REFERENCES "public"."rental_payment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_damage" ADD CONSTRAINT "rental_damage_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_damage" ADD CONSTRAINT "rental_damage_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_damage" ADD CONSTRAINT "rental_damage_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_damage" ADD CONSTRAINT "rental_damage_inspection_id_rental_inspection_id_fk" FOREIGN KEY ("inspection_id") REFERENCES "public"."rental_inspection"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_deposit_event" ADD CONSTRAINT "rental_deposit_event_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_deposit_event" ADD CONSTRAINT "rental_deposit_event_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_deposit_event" ADD CONSTRAINT "rental_deposit_event_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_deposit_event" ADD CONSTRAINT "rental_deposit_event_linked_charge_id_rental_charge_id_fk" FOREIGN KEY ("linked_charge_id") REFERENCES "public"."rental_charge"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_deposit_event" ADD CONSTRAINT "rental_deposit_event_linked_payment_id_rental_payment_id_fk" FOREIGN KEY ("linked_payment_id") REFERENCES "public"."rental_payment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_deposit_event" ADD CONSTRAINT "rental_deposit_event_created_by_member_id_member_id_fk" FOREIGN KEY ("created_by_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_event" ADD CONSTRAINT "rental_event_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_event" ADD CONSTRAINT "rental_event_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_event" ADD CONSTRAINT "rental_event_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_event" ADD CONSTRAINT "rental_event_actor_member_id_member_id_fk" FOREIGN KEY ("actor_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_inspection" ADD CONSTRAINT "rental_inspection_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_inspection" ADD CONSTRAINT "rental_inspection_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_inspection" ADD CONSTRAINT "rental_inspection_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rental_inspection" ADD CONSTRAINT "rental_inspection_completed_by_member_id_member_id_fk" FOREIGN KEY ("completed_by_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_invoice" ADD CONSTRAINT "rental_invoice_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_invoice" ADD CONSTRAINT "rental_invoice_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_invoice" ADD CONSTRAINT "rental_invoice_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -596,11 +768,20 @@ ALTER TABLE "rental_payment_schedule" ADD CONSTRAINT "rental_payment_schedule_re
 ALTER TABLE "rental_pricing_snapshot" ADD CONSTRAINT "rental_pricing_snapshot_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_pricing_snapshot" ADD CONSTRAINT "rental_pricing_snapshot_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rental_pricing_snapshot" ADD CONSTRAINT "rental_pricing_snapshot_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_availability_block" ADD CONSTRAINT "vehicle_availability_block_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_availability_block" ADD CONSTRAINT "vehicle_availability_block_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_availability_block" ADD CONSTRAINT "vehicle_availability_block_vehicle_id_vehicle_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicle"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_availability_block" ADD CONSTRAINT "vehicle_availability_block_rental_id_rental_id_fk" FOREIGN KEY ("rental_id") REFERENCES "public"."rental"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_availability_block" ADD CONSTRAINT "vehicle_availability_block_created_by_member_id_member_id_fk" FOREIGN KEY ("created_by_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_availability_block" ADD CONSTRAINT "vehicle_availability_block_updated_by_member_id_member_id_fk" FOREIGN KEY ("updated_by_member_id") REFERENCES "public"."member"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle" ADD CONSTRAINT "vehicle_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle" ADD CONSTRAINT "vehicle_branch_id_branch_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branch"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle" ADD CONSTRAINT "vehicle_brand_id_vehicle_brand_id_fk" FOREIGN KEY ("brand_id") REFERENCES "public"."vehicle_brand"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle" ADD CONSTRAINT "vehicle_model_id_vehicle_model_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."vehicle_model"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle" ADD CONSTRAINT "vehicle_vehicle_class_id_vehicle_class_id_fk" FOREIGN KEY ("vehicle_class_id") REFERENCES "public"."vehicle_class"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle" ADD CONSTRAINT "vehicle_body_type_id_vehicle_type_id_fk" FOREIGN KEY ("body_type_id") REFERENCES "public"."vehicle_type"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_class" ADD CONSTRAINT "vehicle_class_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "vehicle_class" ADD CONSTRAINT "vehicle_class_body_type_id_vehicle_type_id_fk" FOREIGN KEY ("body_type_id") REFERENCES "public"."vehicle_type"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle_model" ADD CONSTRAINT "vehicle_model_brand_id_vehicle_brand_id_fk" FOREIGN KEY ("brand_id") REFERENCES "public"."vehicle_brand"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle_model" ADD CONSTRAINT "vehicle_model_body_type_id_vehicle_type_id_fk" FOREIGN KEY ("body_type_id") REFERENCES "public"."vehicle_type"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vehicle_rate" ADD CONSTRAINT "vehicle_rate_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -669,9 +850,32 @@ CREATE INDEX "rental_status_idx" ON "rental" USING btree ("status");--> statemen
 CREATE INDEX "rental_agreement_organization_id_idx" ON "rental_agreement" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "rental_agreement_branch_id_idx" ON "rental_agreement" USING btree ("branch_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "rental_agreement_rental_id_uidx" ON "rental_agreement" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_amendment_organization_id_idx" ON "rental_amendment" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "rental_amendment_branch_id_idx" ON "rental_amendment" USING btree ("branch_id");--> statement-breakpoint
+CREATE INDEX "rental_amendment_rental_id_idx" ON "rental_amendment" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_amendment_type_idx" ON "rental_amendment" USING btree ("type");--> statement-breakpoint
+CREATE INDEX "rental_charge_organization_id_idx" ON "rental_charge" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "rental_charge_branch_id_idx" ON "rental_charge" USING btree ("branch_id");--> statement-breakpoint
+CREATE INDEX "rental_charge_rental_id_idx" ON "rental_charge" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_charge_status_idx" ON "rental_charge" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "rental_charge_payment_id_idx" ON "rental_charge" USING btree ("linked_payment_id");--> statement-breakpoint
+CREATE INDEX "rental_damage_organization_id_idx" ON "rental_damage" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "rental_damage_branch_id_idx" ON "rental_damage" USING btree ("branch_id");--> statement-breakpoint
+CREATE INDEX "rental_damage_rental_id_idx" ON "rental_damage" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_damage_inspection_id_idx" ON "rental_damage" USING btree ("inspection_id");--> statement-breakpoint
+CREATE INDEX "rental_damage_repair_status_idx" ON "rental_damage" USING btree ("repair_status");--> statement-breakpoint
+CREATE INDEX "rental_deposit_event_organization_id_idx" ON "rental_deposit_event" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "rental_deposit_event_branch_id_idx" ON "rental_deposit_event" USING btree ("branch_id");--> statement-breakpoint
+CREATE INDEX "rental_deposit_event_rental_id_idx" ON "rental_deposit_event" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_deposit_event_charge_id_idx" ON "rental_deposit_event" USING btree ("linked_charge_id");--> statement-breakpoint
+CREATE INDEX "rental_deposit_event_payment_id_idx" ON "rental_deposit_event" USING btree ("linked_payment_id");--> statement-breakpoint
 CREATE INDEX "rental_event_organization_id_idx" ON "rental_event" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "rental_event_branch_id_idx" ON "rental_event" USING btree ("branch_id");--> statement-breakpoint
 CREATE INDEX "rental_event_rental_id_idx" ON "rental_event" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_inspection_organization_id_idx" ON "rental_inspection" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "rental_inspection_branch_id_idx" ON "rental_inspection" USING btree ("branch_id");--> statement-breakpoint
+CREATE INDEX "rental_inspection_rental_id_idx" ON "rental_inspection" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "rental_inspection_stage_idx" ON "rental_inspection" USING btree ("stage");--> statement-breakpoint
 CREATE INDEX "rental_invoice_organization_id_idx" ON "rental_invoice" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "rental_invoice_branch_id_idx" ON "rental_invoice" USING btree ("branch_id");--> statement-breakpoint
 CREATE INDEX "rental_invoice_rental_id_idx" ON "rental_invoice" USING btree ("rental_id");--> statement-breakpoint
@@ -685,21 +889,33 @@ CREATE INDEX "rental_payment_rental_id_idx" ON "rental_payment" USING btree ("re
 CREATE INDEX "rental_payment_schedule_id_idx" ON "rental_payment" USING btree ("schedule_id");--> statement-breakpoint
 CREATE INDEX "rental_payment_invoice_id_idx" ON "rental_payment" USING btree ("invoice_id");--> statement-breakpoint
 CREATE INDEX "rental_payment_status_idx" ON "rental_payment" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "rental_payment_org_created_at_idx" ON "rental_payment" USING btree ("organization_id","created_at");--> statement-breakpoint
+CREATE INDEX "rental_payment_org_status_created_at_idx" ON "rental_payment" USING btree ("organization_id","status","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "rental_payment_org_idempotency_uidx" ON "rental_payment" USING btree ("organization_id","idempotency_key");--> statement-breakpoint
 CREATE INDEX "rental_payment_schedule_organization_id_idx" ON "rental_payment_schedule" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "rental_payment_schedule_branch_id_idx" ON "rental_payment_schedule" USING btree ("branch_id");--> statement-breakpoint
 CREATE INDEX "rental_payment_schedule_rental_id_idx" ON "rental_payment_schedule" USING btree ("rental_id");--> statement-breakpoint
 CREATE INDEX "rental_payment_schedule_status_idx" ON "rental_payment_schedule" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "rental_payment_schedule_stripe_invoice_id_idx" ON "rental_payment_schedule" USING btree ("stripe_invoice_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "rental_payment_schedule_rental_sequence_uidx" ON "rental_payment_schedule" USING btree ("rental_id","sequence");--> statement-breakpoint
 CREATE INDEX "rental_pricing_snapshot_organization_id_idx" ON "rental_pricing_snapshot" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "rental_pricing_snapshot_branch_id_idx" ON "rental_pricing_snapshot" USING btree ("branch_id");--> statement-breakpoint
 CREATE INDEX "rental_pricing_snapshot_rental_id_idx" ON "rental_pricing_snapshot" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "vehicle_availability_block_org_idx" ON "vehicle_availability_block" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "vehicle_availability_block_branch_idx" ON "vehicle_availability_block" USING btree ("branch_id");--> statement-breakpoint
+CREATE INDEX "vehicle_availability_block_vehicle_idx" ON "vehicle_availability_block" USING btree ("vehicle_id");--> statement-breakpoint
+CREATE INDEX "vehicle_availability_block_rental_idx" ON "vehicle_availability_block" USING btree ("rental_id");--> statement-breakpoint
+CREATE INDEX "vehicle_availability_block_status_idx" ON "vehicle_availability_block" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "vehicle_availability_block_expires_idx" ON "vehicle_availability_block" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "vehicle_organization_id_idx" ON "vehicle" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "vehicle_branch_id_idx" ON "vehicle" USING btree ("branch_id");--> statement-breakpoint
 CREATE INDEX "vehicle_status_idx" ON "vehicle" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "vehicle_organization_vin_uidx" ON "vehicle" USING btree ("organization_id","vin");--> statement-breakpoint
 CREATE UNIQUE INDEX "vehicle_organization_license_uidx" ON "vehicle" USING btree ("organization_id","license_plate");--> statement-breakpoint
 CREATE UNIQUE INDEX "vehicle_brand_name_uidx" ON "vehicle_brand" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "vehicle_class_organization_id_idx" ON "vehicle_class" USING btree ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "vehicle_class_org_code_uidx" ON "vehicle_class" USING btree ("organization_id","code");--> statement-breakpoint
+CREATE UNIQUE INDEX "vehicle_class_org_name_uidx" ON "vehicle_class" USING btree ("organization_id","name");--> statement-breakpoint
 CREATE INDEX "vehicle_model_brand_id_idx" ON "vehicle_model" USING btree ("brand_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "vehicle_model_brand_name_uidx" ON "vehicle_model" USING btree ("brand_id","name");--> statement-breakpoint
 CREATE INDEX "vehicle_rate_organization_id_idx" ON "vehicle_rate" USING btree ("organization_id");--> statement-breakpoint
@@ -712,6 +928,8 @@ CREATE INDEX "stripe_webhook_event_branch_id_idx" ON "stripe_webhook_event" USIN
 CREATE INDEX "stripe_webhook_event_status_idx" ON "stripe_webhook_event" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "stripe_webhook_event_type_idx" ON "stripe_webhook_event" USING btree ("type");--> statement-breakpoint
 CREATE INDEX "stripe_webhook_event_object_id_idx" ON "stripe_webhook_event" USING btree ("object_id");--> statement-breakpoint
+CREATE INDEX "stripe_webhook_event_org_received_at_idx" ON "stripe_webhook_event" USING btree ("organization_id","received_at");--> statement-breakpoint
+CREATE INDEX "stripe_webhook_event_org_status_received_at_idx" ON "stripe_webhook_event" USING btree ("organization_id","status","received_at");--> statement-breakpoint
 CREATE INDEX "workspace_realtime_event_organization_id_idx" ON "workspace_realtime_event" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "workspace_realtime_event_branch_id_idx" ON "workspace_realtime_event" USING btree ("branch_id");--> statement-breakpoint
 CREATE INDEX "workspace_realtime_event_topic_idx" ON "workspace_realtime_event" USING btree ("topic");--> statement-breakpoint
