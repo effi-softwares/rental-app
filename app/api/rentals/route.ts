@@ -13,6 +13,7 @@ const allowedStatuses = new Set([
 	"draft",
 	"awaiting_payment",
 	"scheduled",
+	"cancelling",
 	"active",
 	"completed",
 	"cancelled",

@@ -22,10 +22,24 @@ export const rentalStatusEnum = pgEnum("rental_status", [
 	"draft",
 	"awaiting_payment",
 	"scheduled",
+	"cancelling",
 	"active",
 	"completed",
 	"cancelled",
 ])
+
+export const rentalCancellationReasonEnum = pgEnum(
+	"rental_cancellation_reason",
+	[
+		"customer_request",
+		"payment_issue",
+		"vehicle_unavailable",
+		"pricing_error",
+		"duplicate_booking",
+		"staff_error",
+		"other",
+	],
+)
 
 export const rentalPricingBucketEnum = pgEnum("rental_pricing_bucket", [
 	"day",
@@ -86,6 +100,11 @@ export const rentalPaymentStatusEnum = pgEnum("rental_payment_status", [
 	"refunded",
 	"cancelled",
 ])
+
+export const rentalPaymentRefundStatusEnum = pgEnum(
+	"rental_payment_refund_status",
+	["pending", "processing", "succeeded", "failed", "cancelled"],
+)
 
 export const rentalPaymentMethodTypeEnum = pgEnum(
 	"rental_payment_method_type",
@@ -213,6 +232,14 @@ export const rental = pgTable(
 			onDelete: "set null",
 		}),
 		status: rentalStatusEnum("status").default("draft").notNull(),
+		cancellationReason: rentalCancellationReasonEnum("cancellation_reason"),
+		cancellationNote: text("cancellation_note"),
+		cancellationRequestedAt: timestamp("cancellation_requested_at", {
+			withTimezone: true,
+		}),
+		cancellationCompletedAt: timestamp("cancellation_completed_at", {
+			withTimezone: true,
+		}),
 		currency: text("currency").default("AUD").notNull(),
 		plannedStartAt: timestamp("planned_start_at", { withTimezone: true }),
 		plannedEndAt: timestamp("planned_end_at", { withTimezone: true }),
@@ -261,6 +288,16 @@ export const rental = pgTable(
 				onDelete: "set null",
 			},
 		),
+		cancellationRequestedByMemberId: uuid(
+			"cancellation_requested_by_member_id",
+		).references(() => member.id, {
+			onDelete: "set null",
+		}),
+		cancellationCompletedByMemberId: uuid(
+			"cancellation_completed_by_member_id",
+		).references(() => member.id, {
+			onDelete: "set null",
+		}),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -536,6 +573,61 @@ export const rentalPayment = pgTable(
 		uniqueIndex("rental_payment_org_idempotency_uidx").on(
 			table.organizationId,
 			table.idempotencyKey,
+		),
+	],
+)
+
+export const rentalPaymentRefund = pgTable(
+	"rental_payment_refund",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		branchId: uuid("branch_id").references(() => branch.id, {
+			onDelete: "set null",
+		}),
+		rentalId: uuid("rental_id")
+			.notNull()
+			.references(() => rental.id, { onDelete: "cascade" }),
+		paymentId: uuid("payment_id")
+			.notNull()
+			.references(() => rentalPayment.id, { onDelete: "cascade" }),
+		provider: text("provider").default("stripe").notNull(),
+		status: rentalPaymentRefundStatusEnum("status")
+			.default("pending")
+			.notNull(),
+		amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+		currency: text("currency").default("AUD").notNull(),
+		stripeRefundId: text("stripe_refund_id"),
+		reference: text("reference"),
+		failureReason: text("failure_reason"),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({})
+			.notNull(),
+		confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+		confirmedByMemberId: uuid("confirmed_by_member_id").references(
+			() => member.id,
+			{
+				onDelete: "set null",
+			},
+		),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("rental_payment_refund_organization_id_idx").on(table.organizationId),
+		index("rental_payment_refund_branch_id_idx").on(table.branchId),
+		index("rental_payment_refund_rental_id_idx").on(table.rentalId),
+		index("rental_payment_refund_payment_id_idx").on(table.paymentId),
+		index("rental_payment_refund_status_idx").on(table.status),
+		index("rental_payment_refund_stripe_refund_id_idx").on(
+			table.stripeRefundId,
 		),
 	],
 )
@@ -967,10 +1059,19 @@ export const rentalRelations = relations(rental, ({ many, one }) => ({
 		fields: [rental.updatedByMemberId],
 		references: [member.id],
 	}),
+	cancellationRequestedBy: one(member, {
+		fields: [rental.cancellationRequestedByMemberId],
+		references: [member.id],
+	}),
+	cancellationCompletedBy: one(member, {
+		fields: [rental.cancellationCompletedByMemberId],
+		references: [member.id],
+	}),
 	invoices: many(rentalInvoice),
 	pricingSnapshots: many(rentalPricingSnapshot),
 	paymentSchedules: many(rentalPaymentSchedule),
 	payments: many(rentalPayment),
+	paymentRefunds: many(rentalPaymentRefund),
 	agreement: many(rentalAgreement),
 	inspections: many(rentalInspection),
 	damages: many(rentalDamage),
@@ -1018,28 +1119,58 @@ export const rentalPaymentScheduleRelations = relations(
 	}),
 )
 
-export const rentalPaymentRelations = relations(rentalPayment, ({ one }) => ({
-	organization: one(organization, {
-		fields: [rentalPayment.organizationId],
-		references: [organization.id],
+export const rentalPaymentRelations = relations(
+	rentalPayment,
+	({ many, one }) => ({
+		organization: one(organization, {
+			fields: [rentalPayment.organizationId],
+			references: [organization.id],
+		}),
+		branch: one(branch, {
+			fields: [rentalPayment.branchId],
+			references: [branch.id],
+		}),
+		rental: one(rental, {
+			fields: [rentalPayment.rentalId],
+			references: [rental.id],
+		}),
+		schedule: one(rentalPaymentSchedule, {
+			fields: [rentalPayment.scheduleId],
+			references: [rentalPaymentSchedule.id],
+		}),
+		invoice: one(rentalInvoice, {
+			fields: [rentalPayment.invoiceId],
+			references: [rentalInvoice.id],
+		}),
+		refunds: many(rentalPaymentRefund),
 	}),
-	branch: one(branch, {
-		fields: [rentalPayment.branchId],
-		references: [branch.id],
+)
+
+export const rentalPaymentRefundRelations = relations(
+	rentalPaymentRefund,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [rentalPaymentRefund.organizationId],
+			references: [organization.id],
+		}),
+		branch: one(branch, {
+			fields: [rentalPaymentRefund.branchId],
+			references: [branch.id],
+		}),
+		rental: one(rental, {
+			fields: [rentalPaymentRefund.rentalId],
+			references: [rental.id],
+		}),
+		payment: one(rentalPayment, {
+			fields: [rentalPaymentRefund.paymentId],
+			references: [rentalPayment.id],
+		}),
+		confirmedBy: one(member, {
+			fields: [rentalPaymentRefund.confirmedByMemberId],
+			references: [member.id],
+		}),
 	}),
-	rental: one(rental, {
-		fields: [rentalPayment.rentalId],
-		references: [rental.id],
-	}),
-	schedule: one(rentalPaymentSchedule, {
-		fields: [rentalPayment.scheduleId],
-		references: [rentalPaymentSchedule.id],
-	}),
-	invoice: one(rentalInvoice, {
-		fields: [rentalPayment.invoiceId],
-		references: [rentalInvoice.id],
-	}),
-}))
+)
 
 export const rentalInvoiceRelations = relations(
 	rentalInvoice,

@@ -1,6 +1,6 @@
 {
-	"id": "721de7b0-fe8f-463d-ac7a-9625d71c5fa9",
-	"prevId": "00000000-0000-0000-0000-000000000000",
+	"id": "760af31f-f24d-4452-9438-40f2011eff1e",
+	"prevId": "721de7b0-fe8f-463d-ac7a-9625d71c5fa9",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -2754,6 +2754,31 @@
 					"notNull": true,
 					"default": "'draft'"
 				},
+				"cancellation_reason": {
+					"name": "cancellation_reason",
+					"type": "rental_cancellation_reason",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cancellation_note": {
+					"name": "cancellation_note",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cancellation_requested_at": {
+					"name": "cancellation_requested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cancellation_completed_at": {
+					"name": "cancellation_completed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"currency": {
 					"name": "currency",
 					"type": "text",
@@ -2891,6 +2916,18 @@
 				},
 				"updated_by_member_id": {
 					"name": "updated_by_member_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cancellation_requested_by_member_id": {
+					"name": "cancellation_requested_by_member_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"cancellation_completed_by_member_id": {
+					"name": "cancellation_completed_by_member_id",
 					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
@@ -3038,6 +3075,24 @@
 					"tableFrom": "rental",
 					"tableTo": "member",
 					"columnsFrom": ["updated_by_member_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"rental_cancellation_requested_by_member_id_member_id_fk": {
+					"name": "rental_cancellation_requested_by_member_id_member_id_fk",
+					"tableFrom": "rental",
+					"tableTo": "member",
+					"columnsFrom": ["cancellation_requested_by_member_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"rental_cancellation_completed_by_member_id_member_id_fk": {
+					"name": "rental_cancellation_completed_by_member_id_member_id_fk",
+					"tableFrom": "rental",
+					"tableTo": "member",
+					"columnsFrom": ["cancellation_completed_by_member_id"],
 					"columnsTo": ["id"],
 					"onDelete": "set null",
 					"onUpdate": "no action"
@@ -5291,6 +5346,266 @@
 			"checkConstraints": {},
 			"isRLSEnabled": false
 		},
+		"public.rental_payment_refund": {
+			"name": "rental_payment_refund",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"branch_id": {
+					"name": "branch_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"rental_id": {
+					"name": "rental_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"payment_id": {
+					"name": "payment_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"provider": {
+					"name": "provider",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'stripe'"
+				},
+				"status": {
+					"name": "status",
+					"type": "rental_payment_refund_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'pending'"
+				},
+				"amount": {
+					"name": "amount",
+					"type": "numeric(12, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"currency": {
+					"name": "currency",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'AUD'"
+				},
+				"stripe_refund_id": {
+					"name": "stripe_refund_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"reference": {
+					"name": "reference",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"failure_reason": {
+					"name": "failure_reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"metadata": {
+					"name": "metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"confirmed_at": {
+					"name": "confirmed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"confirmed_by_member_id": {
+					"name": "confirmed_by_member_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"rental_payment_refund_organization_id_idx": {
+					"name": "rental_payment_refund_organization_id_idx",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"rental_payment_refund_branch_id_idx": {
+					"name": "rental_payment_refund_branch_id_idx",
+					"columns": [
+						{
+							"expression": "branch_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"rental_payment_refund_rental_id_idx": {
+					"name": "rental_payment_refund_rental_id_idx",
+					"columns": [
+						{
+							"expression": "rental_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"rental_payment_refund_payment_id_idx": {
+					"name": "rental_payment_refund_payment_id_idx",
+					"columns": [
+						{
+							"expression": "payment_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"rental_payment_refund_status_idx": {
+					"name": "rental_payment_refund_status_idx",
+					"columns": [
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"rental_payment_refund_stripe_refund_id_idx": {
+					"name": "rental_payment_refund_stripe_refund_id_idx",
+					"columns": [
+						{
+							"expression": "stripe_refund_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"rental_payment_refund_organization_id_organization_id_fk": {
+					"name": "rental_payment_refund_organization_id_organization_id_fk",
+					"tableFrom": "rental_payment_refund",
+					"tableTo": "organization",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"rental_payment_refund_branch_id_branch_id_fk": {
+					"name": "rental_payment_refund_branch_id_branch_id_fk",
+					"tableFrom": "rental_payment_refund",
+					"tableTo": "branch",
+					"columnsFrom": ["branch_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				},
+				"rental_payment_refund_rental_id_rental_id_fk": {
+					"name": "rental_payment_refund_rental_id_rental_id_fk",
+					"tableFrom": "rental_payment_refund",
+					"tableTo": "rental",
+					"columnsFrom": ["rental_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"rental_payment_refund_payment_id_rental_payment_id_fk": {
+					"name": "rental_payment_refund_payment_id_rental_payment_id_fk",
+					"tableFrom": "rental_payment_refund",
+					"tableTo": "rental_payment",
+					"columnsFrom": ["payment_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"rental_payment_refund_confirmed_by_member_id_member_id_fk": {
+					"name": "rental_payment_refund_confirmed_by_member_id_member_id_fk",
+					"tableFrom": "rental_payment_refund",
+					"tableTo": "member",
+					"columnsFrom": ["confirmed_by_member_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
 		"public.rental_payment_schedule": {
 			"name": "rental_payment_schedule",
 			"schema": "",
@@ -7331,6 +7646,19 @@
 			"schema": "public",
 			"values": ["schedule_change", "extension", "early_return"]
 		},
+		"public.rental_cancellation_reason": {
+			"name": "rental_cancellation_reason",
+			"schema": "public",
+			"values": [
+				"customer_request",
+				"payment_issue",
+				"vehicle_unavailable",
+				"pricing_error",
+				"duplicate_booking",
+				"staff_error",
+				"other"
+			]
+		},
 		"public.rental_charge_kind": {
 			"name": "rental_charge_kind",
 			"schema": "public",
@@ -7431,6 +7759,11 @@
 			"schema": "public",
 			"values": ["single", "installment"]
 		},
+		"public.rental_payment_refund_status": {
+			"name": "rental_payment_refund_status",
+			"schema": "public",
+			"values": ["pending", "processing", "succeeded", "failed", "cancelled"]
+		},
 		"public.rental_payment_schedule_status": {
 			"name": "rental_payment_schedule_status",
 			"schema": "public",
@@ -7475,6 +7808,7 @@
 				"draft",
 				"awaiting_payment",
 				"scheduled",
+				"cancelling",
 				"active",
 				"completed",
 				"cancelled"

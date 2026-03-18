@@ -272,7 +272,12 @@ async function getConflictsForVehicles(input: {
 				and(
 					eq(rental.organizationId, input.organizationId),
 					inArray(rental.vehicleId, input.vehicleIds),
-					inArray(rental.status, ["awaiting_payment", "scheduled", "active"]),
+					inArray(rental.status, [
+						"awaiting_payment",
+						"scheduled",
+						"cancelling",
+						"active",
+					]),
 					input.rentalId ? ne(rental.id, input.rentalId) : undefined,
 				),
 			),

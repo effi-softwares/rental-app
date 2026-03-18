@@ -2,10 +2,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { rentalsQueryKeys } from "@/features/rentals/queries/keys"
 import type {
+	CancelRentalPayload,
+	CancelRentalResponse,
 	CollectCashPaymentPayload,
 	CollectCashPaymentResponse,
 	CollectRentalChargePayload,
 	CollectRentalChargeResponse,
+	ConfirmCashRefundResponse,
 	ConfirmRentalPaymentPayload,
 	ConfirmRentalPaymentResponse,
 	CreateRentalChargePayload,
@@ -105,6 +108,69 @@ export function useRecommitRentalMutation(organizationId?: string) {
 				detail,
 			})
 			await queryClient.invalidateQueries({ queryKey: rentalsQueryKeys.all })
+		},
+	})
+}
+
+export function useCancelRentalMutation(organizationId?: string) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: async ({
+			rentalId,
+			payload,
+		}: {
+			rentalId: string
+			payload: CancelRentalPayload
+		}) => {
+			const response = await fetch(`/api/rentals/${rentalId}/cancel`, {
+				method: "POST",
+				headers: toJsonHeaders(),
+				body: JSON.stringify(payload),
+			})
+
+			await assertOk(response, "Failed to cancel rental.")
+			return (await response.json()) as CancelRentalResponse
+		},
+		onSuccess: async (_, variables) => {
+			await queryClient.invalidateQueries({
+				queryKey: rentalsQueryKeys.all,
+			})
+			await queryClient.invalidateQueries({
+				queryKey: rentalsQueryKeys.detail(organizationId, variables.rentalId),
+			})
+		},
+	})
+}
+
+export function useConfirmCashRefundMutation(organizationId?: string) {
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: async ({
+			rentalId,
+			refundId,
+		}: {
+			rentalId: string
+			refundId: string
+		}) => {
+			const response = await fetch(
+				`/api/rentals/${rentalId}/refunds/${refundId}/confirm-cash`,
+				{
+					method: "POST",
+				},
+			)
+
+			await assertOk(response, "Failed to confirm cash refund.")
+			return (await response.json()) as ConfirmCashRefundResponse
+		},
+		onSuccess: async (_, variables) => {
+			await queryClient.invalidateQueries({
+				queryKey: rentalsQueryKeys.all,
+			})
+			await queryClient.invalidateQueries({
+				queryKey: rentalsQueryKeys.detail(organizationId, variables.rentalId),
+			})
 		},
 	})
 }

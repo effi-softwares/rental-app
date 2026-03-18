@@ -37,10 +37,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import {
+	type RentalCancellationReason,
 	type RentalChargeKind,
 	type RentalChargeSummary,
+	useCancelRentalMutation,
 	useCollectCashPaymentMutation,
 	useCollectRentalChargeMutation,
+	useConfirmCashRefundMutation,
 	useCreateRentalChargeMutation,
 	useExtendRentalMutation,
 	useFinalizeRentalMutation,
@@ -98,6 +101,7 @@ function rentalStatusBadgeClass(
 		| "draft"
 		| "awaiting_payment"
 		| "scheduled"
+		| "cancelling"
 		| "active"
 		| "completed"
 		| "cancelled",
@@ -107,6 +111,8 @@ function rentalStatusBadgeClass(
 			return "border-emerald-200 bg-emerald-50 text-emerald-700"
 		case "scheduled":
 			return "border-sky-200 bg-sky-50 text-sky-700"
+		case "cancelling":
+			return "border-orange-200 bg-orange-50 text-orange-700"
 		case "awaiting_payment":
 			return "border-amber-200 bg-amber-50 text-amber-700"
 		case "completed":
@@ -313,6 +319,8 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	const finalizeMutation = useFinalizeRentalMutation(organizationId)
 	const preparePaymentMutation = usePrepareRentalPaymentMutation(organizationId)
 	const collectCashMutation = useCollectCashPaymentMutation(organizationId)
+	const cancelRentalMutation = useCancelRentalMutation(organizationId)
+	const confirmCashRefundMutation = useConfirmCashRefundMutation(organizationId)
 	const extendMutation = useExtendRentalMutation(organizationId)
 	const createChargeMutation = useCreateRentalChargeMutation(organizationId)
 	const collectChargeMutation = useCollectRentalChargeMutation(organizationId)
@@ -326,6 +334,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		useState<OperationsPanel>("handover")
 	const [isEditOpen, setIsEditOpen] = useState(false)
 	const [isFinalizeOpen, setIsFinalizeOpen] = useState(false)
+	const [isCancelOpen, setIsCancelOpen] = useState(false)
 	const [isHandoverOpen, setIsHandoverOpen] = useState(false)
 	const [isReturnFlowOpen, setIsReturnFlowOpen] = useState(false)
 	const [selectedScheduleId, setSelectedScheduleId] = useState<string>("")
@@ -360,6 +369,9 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 	const [depositAmount, setDepositAmount] = useState("")
 	const [depositChargeId, setDepositChargeId] = useState("")
 	const [depositNote, setDepositNote] = useState("")
+	const [cancellationReason, setCancellationReason] =
+		useState<RentalCancellationReason>("customer_request")
+	const [cancellationNote, setCancellationNote] = useState("")
 
 	useEffect(() => {
 		if (!detail) {
@@ -367,8 +379,12 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		}
 
 		const firstPendingSchedule =
-			detail.paymentSchedule.find((row) => row.status !== "succeeded") ??
-			detail.paymentSchedule[0]
+			detail.paymentSchedule.find(
+				(row) =>
+					row.status === "pending" ||
+					row.status === "processing" ||
+					row.status === "failed",
+			) ?? detail.paymentSchedule[0]
 
 		setSelectedScheduleId(
 			(current) => current || firstPendingSchedule?.id || "",
@@ -382,6 +398,10 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		setActiveOperationsPanel(
 			detail.rental.status === "active" ? "return" : "handover",
 		)
+		setCancellationReason(
+			detail.rental.cancellationReason ?? "customer_request",
+		)
+		setCancellationNote(detail.rental.cancellationNote ?? "")
 	}, [detail])
 
 	const primaryAction = detail ? getRentalPrimaryAction(detail) : null
@@ -582,6 +602,41 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 		}
 	}
 
+	async function handleCancelRental() {
+		if (!cancellationReason) {
+			toast.error("Choose a cancellation reason.")
+			return
+		}
+
+		try {
+			await cancelRentalMutation.mutateAsync({
+				rentalId,
+				payload: {
+					reason: cancellationReason,
+					note: cancellationNote,
+				},
+			})
+			setIsCancelOpen(false)
+			toast.success("Rental cancellation started.")
+			void rentalDetailQuery.refetch()
+		} catch (error) {
+			toast.error(resolveErrorMessage(error, "Failed to cancel rental."))
+		}
+	}
+
+	async function handleConfirmCashRefund(refundId: string) {
+		try {
+			await confirmCashRefundMutation.mutateAsync({
+				rentalId,
+				refundId,
+			})
+			toast.success("Cash refund confirmed.")
+			void rentalDetailQuery.refetch()
+		} catch (error) {
+			toast.error(resolveErrorMessage(error, "Failed to confirm cash refund."))
+		}
+	}
+
 	function handlePrimaryActionClick() {
 		if (!primaryAction || primaryAction.type === "none") {
 			return
@@ -597,6 +652,18 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 			return
 		}
 
+		setActiveTab("operations")
+		setActiveOperationsPanel("return")
+		setIsReturnFlowOpen(true)
+	}
+
+	function openHandoverFlow() {
+		setActiveTab("operations")
+		setActiveOperationsPanel("handover")
+		setIsHandoverOpen(true)
+	}
+
+	function openReturnFlow() {
 		setActiveTab("operations")
 		setActiveOperationsPanel("return")
 		setIsReturnFlowOpen(true)
@@ -706,6 +773,24 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 								>
 									Open operations
 								</DropdownMenuItem>
+								{detail.actionState.canHandover ? (
+									<DropdownMenuItem
+										onSelect={() => {
+											openHandoverFlow()
+										}}
+									>
+										Open handover flow
+									</DropdownMenuItem>
+								) : null}
+								{detail.actionState.canInitiateReturn ? (
+									<DropdownMenuItem
+										onSelect={() => {
+											openReturnFlow()
+										}}
+									>
+										Open return flow
+									</DropdownMenuItem>
+								) : null}
 								<DropdownMenuItem
 									onSelect={() => {
 										setActiveTab("timeline")
@@ -724,6 +809,18 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 								) : null}
 							</DropdownMenuContent>
 						</DropdownMenu>
+
+						{detail.actionState.canCancel ? (
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => {
+									setIsCancelOpen(true)
+								}}
+							>
+								Cancel rental
+							</Button>
+						) : null}
 
 						{primaryAction?.label ? (
 							<Button
@@ -782,6 +879,43 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 					))}
 				</CardContent>
 			</Card>
+
+			{detail.cancellation ? (
+				<Card>
+					<CardHeader>
+						<CardTitle>Cancellation</CardTitle>
+						<CardDescription>
+							Track why this rental is being cancelled and whether refunds are
+							still in progress.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid gap-3 md:grid-cols-3">
+						<DetailPair
+							label="Reason"
+							value={detail.cancellation.reason?.replaceAll("_", " ") ?? "-"}
+							hint={detail.cancellation.note ?? "No extra note recorded."}
+						/>
+						<DetailPair
+							label="Requested"
+							value={formatDateTime(detail.cancellation.requestedAt)}
+							hint={
+								detail.actionState.isCancelling
+									? "Cancellation is still being processed."
+									: "Cancellation workflow has finished."
+							}
+						/>
+						<DetailPair
+							label="Refund status"
+							value={
+								detail.refunds.length === 0
+									? "No refunds required"
+									: `${detail.refunds.filter((refund) => refund.status === "succeeded").length}/${detail.refunds.length} completed`
+							}
+							hint={`Net collected ${formatCurrency(detail.financials.netCollected, detail.rental.currency)}`}
+						/>
+					</CardContent>
+				</Card>
+			) : null}
 
 			<Tabs
 				value={activeTab}
@@ -1061,9 +1195,13 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 								<DetailPair
 									label="Return readiness"
 									value={
-										detail.actionState.canCloseRental
-											? "Rental can be closed when the team is ready."
-											: "There is still work to finish before closing."
+										detail.rental.status === "completed"
+											? "Return already completed."
+											: detail.actionState.canCompleteReturn
+												? "Ready to complete."
+												: detail.actionState.canInitiateReturn
+													? "Finish return steps first."
+													: "There is still work to finish before closing."
 									}
 								/>
 							</CardContent>
@@ -1312,6 +1450,20 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 											detail.rental.currency,
 										)}
 									/>
+									<DetailPair
+										label="Total refunded"
+										value={formatCurrency(
+											detail.financials.totalRefunded,
+											detail.rental.currency,
+										)}
+									/>
+									<DetailPair
+										label="Net collected"
+										value={formatCurrency(
+											detail.financials.netCollected,
+											detail.rental.currency,
+										)}
+									/>
 								</CardContent>
 							</Card>
 						</div>
@@ -1442,6 +1594,79 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 													<TableCell>{event.note ?? "-"}</TableCell>
 													<TableCell className="text-right">
 														{formatCurrency(event.amount, event.currency)}
+													</TableCell>
+												</TableRow>
+											))
+										)}
+									</TableBody>
+								</Table>
+
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Refund</TableHead>
+											<TableHead>Status</TableHead>
+											<TableHead>Reference</TableHead>
+											<TableHead className="text-right">Amount</TableHead>
+											<TableHead className="text-right">Actions</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{detail.refunds.length === 0 ? (
+											<TableRow>
+												<TableCell colSpan={5}>
+													No refunds recorded yet.
+												</TableCell>
+											</TableRow>
+										) : (
+											detail.refunds.map((refund) => (
+												<TableRow key={refund.id}>
+													<TableCell>
+														<div className="space-y-1">
+															<p className="font-medium">
+																{refund.provider === "manual"
+																	? "Cash refund"
+																	: "Stripe refund"}
+															</p>
+															<p className="text-muted-foreground text-xs">
+																{refund.id.slice(0, 8)}
+															</p>
+														</div>
+													</TableCell>
+													<TableCell>
+														<Badge
+															variant="outline"
+															className={paymentStatusBadgeClass(refund.status)}
+														>
+															{refund.status.replaceAll("_", " ")}
+														</Badge>
+													</TableCell>
+													<TableCell>{refund.reference ?? "-"}</TableCell>
+													<TableCell className="text-right">
+														{formatCurrency(refund.amount, refund.currency)}
+													</TableCell>
+													<TableCell className="text-right">
+														{refund.provider === "manual" &&
+														refund.status === "pending" ? (
+															<Button
+																type="button"
+																variant="outline"
+																size="sm"
+																onClick={() => {
+																	void handleConfirmCashRefund(refund.id)
+																}}
+																disabled={
+																	!detail.actionState.canConfirmCashRefund ||
+																	confirmCashRefundMutation.isPending
+																}
+															>
+																Confirm cash refund
+															</Button>
+														) : (
+															<span className="text-muted-foreground text-sm">
+																-
+															</span>
+														)}
 													</TableCell>
 												</TableRow>
 											))
@@ -1775,7 +2000,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 									<Button
 										type="button"
 										onClick={() => {
-											setIsHandoverOpen(true)
+											openHandoverFlow()
 										}}
 										disabled={!detail.actionState.canHandover}
 									>
@@ -1882,7 +2107,7 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 									<Button
 										type="button"
 										onClick={() => {
-											setIsReturnFlowOpen(true)
+											openReturnFlow()
 										}}
 									>
 										Open return flow
@@ -2000,6 +2225,67 @@ export function RentalDetails({ rentalId }: RentalDetailsProps) {
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			<ResponsiveDrawer
+				open={isCancelOpen}
+				onOpenChange={setIsCancelOpen}
+				title="Cancel rental"
+				description="Cancel this rental before handover and start the required refund work."
+			>
+				<div className="space-y-4">
+					<select
+						className="h-11 rounded-md border px-3"
+						value={cancellationReason}
+						onChange={(event) => {
+							setCancellationReason(
+								event.target.value as RentalCancellationReason,
+							)
+						}}
+					>
+						<option value="customer_request">Customer request</option>
+						<option value="payment_issue">Payment issue</option>
+						<option value="vehicle_unavailable">Vehicle unavailable</option>
+						<option value="pricing_error">Pricing error</option>
+						<option value="duplicate_booking">Duplicate booking</option>
+						<option value="staff_error">Staff error</option>
+						<option value="other">Other</option>
+					</select>
+					<Textarea
+						value={cancellationNote}
+						onChange={(event) => {
+							setCancellationNote(event.target.value)
+						}}
+						placeholder="Add an internal note about why this rental is being cancelled"
+					/>
+					<p className="text-muted-foreground text-sm">
+						Stripe payments will be refunded automatically when possible. Cash
+						payments will stay in a pending refund state until staff confirms
+						the refund was handed back.
+					</p>
+					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setIsCancelOpen(false)}
+						>
+							Keep rental
+						</Button>
+						<Button
+							type="button"
+							onClick={() => {
+								void handleCancelRental()
+							}}
+							disabled={
+								!detail.actionState.canCancel || cancelRentalMutation.isPending
+							}
+						>
+							{cancelRentalMutation.isPending
+								? "Cancelling..."
+								: "Start cancellation"}
+						</Button>
+					</div>
+				</div>
+			</ResponsiveDrawer>
 
 			<ResponsiveDrawer
 				open={isFinalizeOpen}

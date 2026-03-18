@@ -16,6 +16,7 @@ import {
 	rentalEvent,
 	type rentalInspection,
 	type rentalPayment,
+	type rentalPaymentRefund,
 	rentalPaymentSchedule,
 } from "@/lib/db/schema/rentals"
 import {
@@ -144,6 +145,46 @@ export function mapRentalPaymentRecord(
 	}
 }
 
+export function mapRentalPaymentRefundRecord(
+	record: Pick<
+		typeof rentalPaymentRefund.$inferSelect,
+		| "id"
+		| "paymentId"
+		| "provider"
+		| "status"
+		| "amount"
+		| "currency"
+		| "stripeRefundId"
+		| "reference"
+		| "failureReason"
+		| "metadata"
+		| "confirmedAt"
+		| "confirmedByMemberId"
+		| "createdAt"
+		| "updatedAt"
+	>,
+) {
+	return {
+		id: record.id,
+		paymentId: record.paymentId,
+		provider: record.provider,
+		status: record.status,
+		amount: numericToNumber(record.amount),
+		currency: record.currency,
+		stripeRefundId: record.stripeRefundId,
+		reference: record.reference,
+		failureReason: record.failureReason,
+		metadata:
+			record.metadata && typeof record.metadata === "object"
+				? (record.metadata as Record<string, unknown>)
+				: {},
+		confirmedAt: record.confirmedAt?.toISOString() ?? null,
+		confirmedByMemberId: record.confirmedByMemberId,
+		createdAt: record.createdAt.toISOString(),
+		updatedAt: record.updatedAt.toISOString(),
+	}
+}
+
 export function mapRentalPaymentScheduleRecord(
 	record: Pick<
 		typeof rentalPaymentSchedule.$inferSelect,
@@ -238,9 +279,9 @@ export function mapRentalInspectionRecord(
 ) {
 	const signaturePayload = record.signaturePayload as
 		| {
-			signerName?: unknown
-			signature?: unknown
-		}
+				signerName?: unknown
+				signature?: unknown
+		  }
 		| undefined
 
 	return {
@@ -259,15 +300,15 @@ export function mapRentalInspectionRecord(
 		notes: record.notes,
 		signature: signaturePayload
 			? {
-				signerName:
-					typeof signaturePayload.signerName === "string"
-						? signaturePayload.signerName
-						: null,
-				signature:
-					typeof signaturePayload.signature === "string"
-						? signaturePayload.signature
-						: null,
-			}
+					signerName:
+						typeof signaturePayload.signerName === "string"
+							? signaturePayload.signerName
+							: null,
+					signature:
+						typeof signaturePayload.signature === "string"
+							? signaturePayload.signature
+							: null,
+				}
 			: null,
 		media: mapRentalMediaArray(record.mediaJson),
 		completedAt: record.completedAt.toISOString(),
@@ -482,7 +523,7 @@ export function hasReachableCustomerContact(record: {
 }) {
 	return Boolean(
 		(typeof record.email === "string" && record.email.trim().length > 0) ||
-		(typeof record.phone === "string" && record.phone.trim().length > 0),
+			(typeof record.phone === "string" && record.phone.trim().length > 0),
 	)
 }
 

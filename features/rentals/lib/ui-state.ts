@@ -8,17 +8,17 @@ export type RentalNextAction = "none" | "handover" | "return"
 
 type RentalPrimaryAction =
 	| {
-		type: "none"
-		label: null
-		description: string
-		disabled: boolean
-	}
+			type: "none"
+			label: null
+			description: string
+			disabled: boolean
+	  }
 	| {
-		type: "finalize" | "handover" | "start_return"
-		label: string
-		description: string
-		disabled: boolean
-	}
+			type: "finalize" | "handover" | "start_return"
+			label: string
+			description: string
+			disabled: boolean
+	  }
 
 export function getRentalPriorityRank(status: RentalStatus) {
 	switch (status) {
@@ -28,12 +28,14 @@ export function getRentalPriorityRank(status: RentalStatus) {
 			return 1
 		case "awaiting_payment":
 			return 2
-		case "draft":
+		case "cancelling":
 			return 3
-		case "completed":
+		case "draft":
 			return 4
-		case "cancelled":
+		case "completed":
 			return 5
+		case "cancelled":
+			return 6
 	}
 }
 
@@ -127,7 +129,9 @@ export function getRentalPrimaryAction(
 		description:
 			detail.rental.status === "completed"
 				? "This rental is complete. Review details, charges, and history here."
-				: "This rental does not need another workflow step right now.",
+				: detail.rental.status === "cancelling"
+					? "Cancellation is in progress while refunds and payment reversals are being completed."
+					: "This rental does not need another workflow step right now.",
 		disabled: true,
 	}
 }
@@ -164,6 +168,14 @@ export function getRentalAttentionMessages(
 	) {
 		messages.push(
 			"Rental is active. Start the return workflow when the vehicle comes back.",
+		)
+	}
+
+	if (detail.actionState.isCancelling) {
+		messages.push(
+			detail.actionState.canConfirmCashRefund
+				? "Cancellation is waiting on manual cash refund confirmation."
+				: "Cancellation is in progress while payment reversals finish.",
 		)
 	}
 

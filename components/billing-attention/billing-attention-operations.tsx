@@ -74,7 +74,8 @@ function PaginationFooter({
 	onPrevious: () => void
 	onNext: () => void
 }) {
-	const startLabel = count === 0 ? 0 : (currentPage - 1) * ACTIVITY_PAGE_SIZE + 1
+	const startLabel =
+		count === 0 ? 0 : (currentPage - 1) * ACTIVITY_PAGE_SIZE + 1
 	const endLabel = Math.min(currentPage * ACTIVITY_PAGE_SIZE, count)
 
 	return (
@@ -123,11 +124,19 @@ export function BillingAttentionOperations() {
 	const paginatedWebhookRows = paginateRows(webhookRows, webhookPage)
 
 	useEffect(() => {
-		setAttentionPage(1)
+		const nextPageCount = Math.max(
+			1,
+			Math.ceil(attentionRows.length / ACTIVITY_PAGE_SIZE),
+		)
+		setAttentionPage((current) => (current > nextPageCount ? nextPageCount : 1))
 	}, [attentionRows.length])
 
 	useEffect(() => {
-		setWebhookPage(1)
+		const nextPageCount = Math.max(
+			1,
+			Math.ceil(webhookRows.length / ACTIVITY_PAGE_SIZE),
+		)
+		setWebhookPage((current) => (current > nextPageCount ? nextPageCount : 1))
 	}, [webhookRows.length])
 
 	return (
@@ -271,10 +280,7 @@ export function BillingAttentionOperations() {
 							}}
 							onNext={() => {
 								setAttentionPage((current) =>
-									Math.min(
-										paginatedAttentionRows.pageCount,
-										current + 1,
-									),
+									Math.min(paginatedAttentionRows.pageCount, current + 1),
 								)
 							}}
 						/>
@@ -388,10 +394,7 @@ export function BillingAttentionOperations() {
 							}}
 							onNext={() => {
 								setWebhookPage((current) =>
-									Math.min(
-										paginatedWebhookRows.pageCount,
-										current + 1,
-									),
+									Math.min(paginatedWebhookRows.pageCount, current + 1),
 								)
 							}}
 						/>

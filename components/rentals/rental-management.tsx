@@ -82,6 +82,7 @@ function rentalStatusBadgeClass(
 		| "draft"
 		| "awaiting_payment"
 		| "scheduled"
+		| "cancelling"
 		| "active"
 		| "completed"
 		| "cancelled",
@@ -91,6 +92,8 @@ function rentalStatusBadgeClass(
 			return "border-emerald-200 bg-emerald-50 text-emerald-700"
 		case "scheduled":
 			return "border-sky-200 bg-sky-50 text-sky-700"
+		case "cancelling":
+			return "border-orange-200 bg-orange-50 text-orange-700"
 		case "awaiting_payment":
 			return "border-amber-200 bg-amber-50 text-amber-700"
 		case "completed":

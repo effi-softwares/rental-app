@@ -30,6 +30,7 @@ import {
 	rentalInvoice,
 	rentalInvoiceLineItem,
 	rentalPayment,
+	rentalPaymentRefund,
 	rentalPaymentSchedule,
 	rentalPricingSnapshot,
 } from "@/lib/db/schema/rentals"
@@ -38,7 +39,7 @@ import {
 	checkRentalAvailability,
 	upsertRentalDraftHold,
 } from "@/lib/rentals/availability"
-import { cancelPreActivationRecurringBilling } from "@/lib/stripe/rental-billing"
+import { resetPendingBillingArtifactsForDraftEdit } from "@/lib/rentals/cancellation"
 import type { Context } from "@/types"
 import {
 	getRentalVehicleSummary,
@@ -49,6 +50,7 @@ import {
 	mapRentalDepositEventRecord,
 	mapRentalInspectionRecord,
 	mapRentalPaymentRecord,
+	mapRentalPaymentRefundRecord,
 	mapRentalPaymentScheduleRecord,
 	mapRentalTimelineRecord,
 	numericToNumber,
@@ -314,8 +316,8 @@ async function upsertInvoiceSnapshotTx(input: {
 
 	const collectionMethod: typeof rentalInvoice.$inferInsert.collectionMethod =
 		input.paymentPlanKind === "installment" &&
-			input.selectedPaymentMethodType &&
-			input.selectedPaymentMethodType !== "cash"
+		input.selectedPaymentMethodType &&
+		input.selectedPaymentMethodType !== "cash"
 			? ("charge_automatically" as const)
 			: ("out_of_band" as const)
 
@@ -340,18 +342,18 @@ async function upsertInvoiceSnapshotTx(input: {
 
 	const invoiceId = existingRows[0]
 		? (
-			await input.tx
-				.update(rentalInvoice)
-				.set(invoiceValues)
-				.where(eq(rentalInvoice.id, existingRows[0].id))
-				.returning({ id: rentalInvoice.id })
-		)[0].id
+				await input.tx
+					.update(rentalInvoice)
+					.set(invoiceValues)
+					.where(eq(rentalInvoice.id, existingRows[0].id))
+					.returning({ id: rentalInvoice.id })
+			)[0].id
 		: (
-			await input.tx
-				.insert(rentalInvoice)
-				.values(invoiceValues)
-				.returning({ id: rentalInvoice.id })
-		)[0].id
+				await input.tx
+					.insert(rentalInvoice)
+					.values(invoiceValues)
+					.returning({ id: rentalInvoice.id })
+			)[0].id
 
 	await input.tx
 		.delete(rentalInvoiceLineItem)
@@ -383,6 +385,7 @@ async function buildRentalDetailResponse(
 		customerSummary,
 		agreementSummary,
 		paymentRows,
+		refundRows,
 		scheduleRows,
 		invoiceSummary,
 		inspectionRows,
@@ -395,45 +398,45 @@ async function buildRentalDetailResponse(
 	] = await Promise.all([
 		rentalRecord.branchId
 			? db
-				.select({
-					id: branch.id,
-					name: branch.name,
-				})
-				.from(branch)
-				.where(
-					and(
-						eq(branch.organizationId, viewer.activeOrganizationId),
-						eq(branch.id, rentalRecord.branchId),
-					),
-				)
-				.limit(1)
-				.then((rows) => rows[0] ?? null)
+					.select({
+						id: branch.id,
+						name: branch.name,
+					})
+					.from(branch)
+					.where(
+						and(
+							eq(branch.organizationId, viewer.activeOrganizationId),
+							eq(branch.id, rentalRecord.branchId),
+						),
+					)
+					.limit(1)
+					.then((rows) => rows[0] ?? null)
 			: Promise.resolve(null),
 		rentalRecord.vehicleId
 			? getRentalVehicleSummary(
-				viewer.activeOrganizationId,
-				rentalRecord.vehicleId,
-			)
+					viewer.activeOrganizationId,
+					rentalRecord.vehicleId,
+				)
 			: Promise.resolve(null),
 		rentalRecord.customerId
 			? db
-				.select({
-					id: customer.id,
-					fullName: customer.fullName,
-					email: customer.email,
-					phone: customer.phone,
-					verificationStatus: customer.verificationStatus,
-					verificationMetadata: customer.verificationMetadata,
-				})
-				.from(customer)
-				.where(
-					and(
-						eq(customer.organizationId, viewer.activeOrganizationId),
-						eq(customer.id, rentalRecord.customerId),
-					),
-				)
-				.limit(1)
-				.then((rows) => rows[0] ?? null)
+					.select({
+						id: customer.id,
+						fullName: customer.fullName,
+						email: customer.email,
+						phone: customer.phone,
+						verificationStatus: customer.verificationStatus,
+						verificationMetadata: customer.verificationMetadata,
+					})
+					.from(customer)
+					.where(
+						and(
+							eq(customer.organizationId, viewer.activeOrganizationId),
+							eq(customer.id, rentalRecord.customerId),
+						),
+					)
+					.limit(1)
+					.then((rows) => rows[0] ?? null)
 			: Promise.resolve(null),
 		db
 			.select({
@@ -460,6 +463,16 @@ async function buildRentalDetailResponse(
 					eq(rentalPayment.rentalId, rentalRecord.id),
 				),
 			),
+		db
+			.select()
+			.from(rentalPaymentRefund)
+			.where(
+				and(
+					eq(rentalPaymentRefund.organizationId, viewer.activeOrganizationId),
+					eq(rentalPaymentRefund.rentalId, rentalRecord.id),
+				),
+			)
+			.orderBy(desc(rentalPaymentRefund.createdAt)),
 		db
 			.select()
 			.from(rentalPaymentSchedule)
@@ -688,6 +701,7 @@ async function buildRentalDetailResponse(
 	}
 
 	const payments = paymentRows.map(mapRentalPaymentRecord)
+	const refunds = refundRows.map(mapRentalPaymentRefundRecord)
 	const paymentSchedule = scheduleRows.map(mapRentalPaymentScheduleRecord)
 	const inspections = inspectionRows.map(mapRentalInspectionRecord)
 	const damages = damageRows.map(mapRentalDamageRecord)
@@ -711,8 +725,12 @@ async function buildRentalDetailResponse(
 		.filter((row) => row.status === "open" || row.status === "partially_paid")
 		.reduce((total, row) => total + row.total, 0)
 	const totalPaid = payments
+		.filter((row) => row.status === "succeeded" || row.status === "refunded")
+		.reduce((total, row) => total + row.amount, 0)
+	const totalRefunded = refunds
 		.filter((row) => row.status === "succeeded")
 		.reduce((total, row) => total + row.amount, 0)
+	const netCollected = Math.max(totalPaid - totalRefunded, 0)
 	const depositReleased = depositEvents
 		.filter((row) => row.type === "released" || row.type === "refunded")
 		.reduce((total, row) => total + row.amount, 0)
@@ -732,15 +750,21 @@ async function buildRentalDetailResponse(
 	const hasReturnInspection = Boolean(returnInspection)
 	const hasRequiredReturnConditionEvidence = Boolean(
 		returnInspection?.conditionRating &&
-		(returnInspection.media.length ?? 0) > 0,
+			(returnInspection.media.length ?? 0) > 0,
 	)
 	const hasOpenExtraCharges = extraCharges.some(
 		(row) => row.status === "open" || row.status === "partially_paid",
 	)
+	const pendingCashRefunds = refunds.filter(
+		(row) => row.provider === "manual" && row.status === "pending",
+	)
 	const hasOutstandingScheduledBalance = scheduledOutstanding > 0
 	const hasOutstandingExtraCharges = extraChargesOutstanding > 0
 	const requiresDepositResolution =
-		depositAmount > 0 && depositHeld > 0 && rentalRecord.status !== "cancelled"
+		depositAmount > 0 &&
+		depositHeld > 0 &&
+		rentalRecord.status !== "cancelled" &&
+		rentalRecord.status !== "cancelling"
 	const balanceDue = Math.max(
 		scheduledOutstanding + extraChargesOutstanding - depositApplied,
 		0,
@@ -757,7 +781,8 @@ async function buildRentalDetailResponse(
 		canPreparePayment:
 			canManagePayments &&
 			rentalRecord.status !== "completed" &&
-			rentalRecord.status !== "cancelled",
+			rentalRecord.status !== "cancelled" &&
+			rentalRecord.status !== "cancelling",
 		canHandover:
 			canManagePayments &&
 			(rentalRecord.status === "scheduled" ||
@@ -768,7 +793,8 @@ async function buildRentalDetailResponse(
 		canResolveDeposit:
 			canManagePayments &&
 			depositAmount > 0 &&
-			rentalRecord.status !== "cancelled",
+			rentalRecord.status !== "cancelled" &&
+			rentalRecord.status !== "cancelling",
 		canCloseRental:
 			rentalRecord.status === "active" || rentalRecord.status === "scheduled",
 		canCompleteReturn:
@@ -779,9 +805,13 @@ async function buildRentalDetailResponse(
 			!hasOutstandingExtraCharges &&
 			!requiresDepositResolution,
 		canCancel:
-			rentalRecord.status === "draft" ||
-			rentalRecord.status === "awaiting_payment" ||
-			rentalRecord.status === "scheduled",
+			canManagePayments &&
+			rentalRecord.actualStartAt === null &&
+			(rentalRecord.status === "draft" ||
+				rentalRecord.status === "awaiting_payment" ||
+				rentalRecord.status === "scheduled"),
+		canConfirmCashRefund: canManagePayments && pendingCashRefunds.length > 0,
+		isCancelling: rentalRecord.status === "cancelling",
 		missingPickupInspection:
 			(rentalRecord.status === "scheduled" ||
 				rentalRecord.status === "awaiting_payment" ||
@@ -800,6 +830,16 @@ async function buildRentalDetailResponse(
 		rental: {
 			id: rentalRecord.id,
 			status: rentalRecord.status,
+			cancellationReason: rentalRecord.cancellationReason,
+			cancellationNote: rentalRecord.cancellationNote,
+			cancellationRequestedAt:
+				rentalRecord.cancellationRequestedAt?.toISOString() ?? null,
+			cancellationCompletedAt:
+				rentalRecord.cancellationCompletedAt?.toISOString() ?? null,
+			cancellationRequestedByMemberId:
+				rentalRecord.cancellationRequestedByMemberId,
+			cancellationCompletedByMemberId:
+				rentalRecord.cancellationCompletedByMemberId,
 			currency: rentalRecord.currency,
 			plannedStartAt: rentalRecord.plannedStartAt?.toISOString() ?? null,
 			plannedEndAt: rentalRecord.plannedEndAt?.toISOString() ?? null,
@@ -832,18 +872,21 @@ async function buildRentalDetailResponse(
 		invoice: invoiceSummary,
 		agreement: agreementSummary
 			? {
-				id: agreementSummary.id,
-				templateVersion: agreementSummary.templateVersion,
-				documentHash: agreementSummary.documentHash,
-				signedAt: agreementSummary.signedAt?.toISOString() ?? null,
-			}
+					id: agreementSummary.id,
+					templateVersion: agreementSummary.templateVersion,
+					documentHash: agreementSummary.documentHash,
+					signedAt: agreementSummary.signedAt?.toISOString() ?? null,
+				}
 			: null,
 		payments,
+		refunds,
 		financials: {
 			invoiceTotal: invoiceSummary?.total ?? snapshotSummary?.grandTotal ?? 0,
 			scheduledOutstanding,
 			extraChargesOutstanding,
 			totalPaid,
+			totalRefunded,
+			netCollected,
 			depositHeld,
 			depositReleased,
 			depositApplied,
@@ -851,6 +894,22 @@ async function buildRentalDetailResponse(
 			balanceDue,
 		},
 		actionState,
+		cancellation:
+			rentalRecord.cancellationReason ||
+			rentalRecord.cancellationNote ||
+			rentalRecord.cancellationRequestedAt ||
+			rentalRecord.cancellationCompletedAt
+				? {
+						reason: rentalRecord.cancellationReason,
+						note: rentalRecord.cancellationNote,
+						requestedAt:
+							rentalRecord.cancellationRequestedAt?.toISOString() ?? null,
+						completedAt:
+							rentalRecord.cancellationCompletedAt?.toISOString() ?? null,
+						requestedByMemberId: rentalRecord.cancellationRequestedByMemberId,
+						completedByMemberId: rentalRecord.cancellationCompletedByMemberId,
+					}
+				: null,
 		inspections,
 		damages,
 		extraCharges,
@@ -901,27 +960,27 @@ export async function commitRentalFlow(input: {
 
 	const existingRental = input.rentalId
 		? await db
-			.select()
-			.from(rental)
-			.where(
-				and(
-					eq(rental.organizationId, input.viewer.activeOrganizationId),
-					eq(rental.id, input.rentalId),
-				),
-			)
-			.limit(1)
-			.then((rows) => rows[0] ?? null)
+				.select()
+				.from(rental)
+				.where(
+					and(
+						eq(rental.organizationId, input.viewer.activeOrganizationId),
+						eq(rental.id, input.rentalId),
+					),
+				)
+				.limit(1)
+				.then((rows) => rows[0] ?? null)
 		: null
 	const existingPaymentRows = existingRental
 		? await db
-			.select()
-			.from(rentalPayment)
-			.where(
-				and(
-					eq(rentalPayment.organizationId, input.viewer.activeOrganizationId),
-					eq(rentalPayment.rentalId, existingRental.id),
-				),
-			)
+				.select()
+				.from(rentalPayment)
+				.where(
+					and(
+						eq(rentalPayment.organizationId, input.viewer.activeOrganizationId),
+						eq(rentalPayment.rentalId, existingRental.id),
+					),
+				)
 		: []
 
 	if (input.rentalId && !existingRental) {
@@ -942,16 +1001,28 @@ export async function commitRentalFlow(input: {
 		existingRental.status !== "active" &&
 		existingRental.status !== "completed" &&
 		existingRental.status !== "cancelled" &&
+		existingRental.status !== "cancelling" &&
 		(existingPaymentRows.length > 0 ||
 			existingRental.selectedPaymentMethodType !== null ||
 			existingRental.storedPaymentMethodStatus !== "none" ||
 			existingRental.recurringBillingState !== "none")
 	) {
-		await cancelPreActivationRecurringBilling({
+		await resetPendingBillingArtifactsForDraftEdit({
 			organizationId: input.viewer.activeOrganizationId,
 			rentalId: existingRental.id,
-			nextRecurringBillingState: "none",
 		})
+	}
+
+	if (
+		existingRental?.status === "cancelling" ||
+		existingRental?.status === "cancelled"
+	) {
+		return {
+			error: jsonError(
+				"Cancelled rentals cannot be edited. Create a new rental instead.",
+				400,
+			),
+		}
 	}
 
 	const vehicleSummary = await getVehicleRatesForCommit(
@@ -983,7 +1054,7 @@ export async function commitRentalFlow(input: {
 		return {
 			error: jsonError(
 				availability.blockingReason ??
-				"Vehicle is unavailable for the selected rental period.",
+					"Vehicle is unavailable for the selected rental period.",
 				409,
 			),
 		}
@@ -996,16 +1067,16 @@ export async function commitRentalFlow(input: {
 		committedRentalId = await db.transaction(async (tx) => {
 			const transactionalExistingRental = input.rentalId
 				? await tx
-					.select()
-					.from(rental)
-					.where(
-						and(
-							eq(rental.organizationId, input.viewer.activeOrganizationId),
-							eq(rental.id, input.rentalId),
-						),
-					)
-					.limit(1)
-					.then((rows) => rows[0] ?? null)
+						.select()
+						.from(rental)
+						.where(
+							and(
+								eq(rental.organizationId, input.viewer.activeOrganizationId),
+								eq(rental.id, input.rentalId),
+							),
+						)
+						.limit(1)
+						.then((rows) => rows[0] ?? null)
 				: null
 
 			if (transactionalExistingRental) {
@@ -1101,52 +1172,52 @@ export async function commitRentalFlow(input: {
 			if (!parsed.hasPricingPayload) {
 				const rentalRecord = transactionalExistingRental
 					? (
-						await tx
-							.update(rental)
-							.set({
-								...baseRentalValues,
-								customerId: transactionalExistingRental.customerId,
-								latestPricingSnapshotId: null,
-								pricingBucket: null,
-								paymentPlanKind: "single",
-								firstCollectionTiming: "setup",
-								installmentInterval: null,
-								installmentCount: null,
-								depositRequired: false,
-								depositAmount: null,
-								notes: transactionalExistingRental.notes,
-								version: transactionalExistingRental.version + 1,
-							})
-							.where(
-								and(
-									eq(
-										rental.organizationId,
-										input.viewer.activeOrganizationId,
+							await tx
+								.update(rental)
+								.set({
+									...baseRentalValues,
+									customerId: transactionalExistingRental.customerId,
+									latestPricingSnapshotId: null,
+									pricingBucket: null,
+									paymentPlanKind: "single",
+									firstCollectionTiming: "setup",
+									installmentInterval: null,
+									installmentCount: null,
+									depositRequired: false,
+									depositAmount: null,
+									notes: transactionalExistingRental.notes,
+									version: transactionalExistingRental.version + 1,
+								})
+								.where(
+									and(
+										eq(
+											rental.organizationId,
+											input.viewer.activeOrganizationId,
+										),
+										eq(rental.id, transactionalExistingRental.id),
 									),
-									eq(rental.id, transactionalExistingRental.id),
-								),
-							)
-							.returning()
-					)[0]
+								)
+								.returning()
+						)[0]
 					: (
-						await tx
-							.insert(rental)
-							.values({
-								...baseRentalValues,
-								customerId: null,
-								latestPricingSnapshotId: null,
-								pricingBucket: null,
-								paymentPlanKind: "single",
-								firstCollectionTiming: "setup",
-								installmentInterval: null,
-								installmentCount: null,
-								depositRequired: false,
-								depositAmount: null,
-								notes: null,
-								createdByMemberId: memberId,
-							})
-							.returning()
-					)[0]
+							await tx
+								.insert(rental)
+								.values({
+									...baseRentalValues,
+									customerId: null,
+									latestPricingSnapshotId: null,
+									pricingBucket: null,
+									paymentPlanKind: "single",
+									firstCollectionTiming: "setup",
+									installmentInterval: null,
+									installmentCount: null,
+									depositRequired: false,
+									depositAmount: null,
+									notes: null,
+									createdByMemberId: memberId,
+								})
+								.returning()
+						)[0]
 
 				return rentalRecord.id
 			}
@@ -1237,53 +1308,53 @@ export async function commitRentalFlow(input: {
 
 			const rentalRecord = transactionalExistingRental
 				? (
-					await tx
-						.update(rental)
-						.set({
-							...baseRentalValues,
-							customerId: resolvedCustomerId,
-							pricingBucket: serverQuote.pricingBucket,
-							paymentPlanKind: parsed.paymentPlanKind,
-							firstCollectionTiming: parsed.firstCollectionTiming,
-							installmentInterval: parsed.installmentInterval,
-							installmentCount: serverSchedule.length,
-							depositRequired: serverQuote.depositAmount > 0,
-							depositAmount:
-								serverQuote.depositAmount > 0
-									? serverQuote.depositAmount.toFixed(2)
-									: null,
-							notes: parsed.notes,
-							version: transactionalExistingRental.version + 1,
-						})
-						.where(
-							and(
-								eq(rental.organizationId, input.viewer.activeOrganizationId),
-								eq(rental.id, transactionalExistingRental.id),
-							),
-						)
-						.returning()
-				)[0]
+						await tx
+							.update(rental)
+							.set({
+								...baseRentalValues,
+								customerId: resolvedCustomerId,
+								pricingBucket: serverQuote.pricingBucket,
+								paymentPlanKind: parsed.paymentPlanKind,
+								firstCollectionTiming: parsed.firstCollectionTiming,
+								installmentInterval: parsed.installmentInterval,
+								installmentCount: serverSchedule.length,
+								depositRequired: serverQuote.depositAmount > 0,
+								depositAmount:
+									serverQuote.depositAmount > 0
+										? serverQuote.depositAmount.toFixed(2)
+										: null,
+								notes: parsed.notes,
+								version: transactionalExistingRental.version + 1,
+							})
+							.where(
+								and(
+									eq(rental.organizationId, input.viewer.activeOrganizationId),
+									eq(rental.id, transactionalExistingRental.id),
+								),
+							)
+							.returning()
+					)[0]
 				: (
-					await tx
-						.insert(rental)
-						.values({
-							...baseRentalValues,
-							customerId: resolvedCustomerId,
-							pricingBucket: serverQuote.pricingBucket,
-							paymentPlanKind: parsed.paymentPlanKind,
-							firstCollectionTiming: parsed.firstCollectionTiming,
-							installmentInterval: parsed.installmentInterval,
-							installmentCount: serverSchedule.length,
-							depositRequired: serverQuote.depositAmount > 0,
-							depositAmount:
-								serverQuote.depositAmount > 0
-									? serverQuote.depositAmount.toFixed(2)
-									: null,
-							notes: parsed.notes,
-							createdByMemberId: memberId,
-						})
-						.returning()
-				)[0]
+						await tx
+							.insert(rental)
+							.values({
+								...baseRentalValues,
+								customerId: resolvedCustomerId,
+								pricingBucket: serverQuote.pricingBucket,
+								paymentPlanKind: parsed.paymentPlanKind,
+								firstCollectionTiming: parsed.firstCollectionTiming,
+								installmentInterval: parsed.installmentInterval,
+								installmentCount: serverSchedule.length,
+								depositRequired: serverQuote.depositAmount > 0,
+								depositAmount:
+									serverQuote.depositAmount > 0
+										? serverQuote.depositAmount.toFixed(2)
+										: null,
+								notes: parsed.notes,
+								createdByMemberId: memberId,
+							})
+							.returning()
+					)[0]
 
 			const calcHash = createHash("sha256")
 				.update(

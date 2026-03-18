@@ -2,9 +2,19 @@ export type RentalStatus =
 	| "draft"
 	| "awaiting_payment"
 	| "scheduled"
+	| "cancelling"
 	| "active"
 	| "completed"
 	| "cancelled"
+
+export type RentalCancellationReason =
+	| "customer_request"
+	| "payment_issue"
+	| "vehicle_unavailable"
+	| "pricing_error"
+	| "duplicate_booking"
+	| "staff_error"
+	| "other"
 
 export type RentalPricingBucket = "day" | "week" | "month"
 export type RentalInstallmentInterval = "week" | "month"
@@ -68,6 +78,13 @@ export type RentalAmendmentType =
 	| "extension"
 	| "early_return"
 
+export type RentalPaymentRefundStatus =
+	| "pending"
+	| "processing"
+	| "succeeded"
+	| "failed"
+	| "cancelled"
+
 export type RentalVehicleSummary = {
 	id: string
 	label: string
@@ -112,13 +129,13 @@ export type RentalVehicleSummary = {
 export type RentalAvailabilityConflict = {
 	id: string
 	sourceType:
-	| "rental"
-	| "draft_hold"
-	| "maintenance"
-	| "prep_before"
-	| "prep_after"
-	| "manual_hold"
-	| "blackout"
+		| "rental"
+		| "draft_hold"
+		| "maintenance"
+		| "prep_before"
+		| "prep_after"
+		| "manual_hold"
+		| "blackout"
 	startsAt: string
 	endsAt: string
 	note: string | null
@@ -338,13 +355,13 @@ export type RentalPaymentSummary = {
 	scheduleId: string | null
 	kind: "payment_method_setup" | "schedule_collection"
 	status:
-	| "pending"
-	| "requires_action"
-	| "processing"
-	| "succeeded"
-	| "failed"
-	| "refunded"
-	| "cancelled"
+		| "pending"
+		| "requires_action"
+		| "processing"
+		| "succeeded"
+		| "failed"
+		| "refunded"
+		| "cancelled"
 	amount: number
 	currency: string
 	paymentMethodType: RentalPaymentMethodType | null
@@ -362,6 +379,23 @@ export type RentalPaymentSummary = {
 	updatedAt: string
 }
 
+export type RentalPaymentRefundSummary = {
+	id: string
+	paymentId: string
+	provider: string
+	status: RentalPaymentRefundStatus
+	amount: number
+	currency: string
+	stripeRefundId: string | null
+	reference: string | null
+	failureReason: string | null
+	metadata: Record<string, unknown>
+	confirmedAt: string | null
+	confirmedByMemberId: string | null
+	createdAt: string
+	updatedAt: string
+}
+
 export type RentalPaymentSession = {
 	mode: "payment" | "setup"
 	clientSecret: string
@@ -373,6 +407,12 @@ export type RentalPaymentSession = {
 export type RentalRecord = {
 	id: string
 	status: RentalStatus
+	cancellationReason: RentalCancellationReason | null
+	cancellationNote: string | null
+	cancellationRequestedAt: string | null
+	cancellationCompletedAt: string | null
+	cancellationRequestedByMemberId: string | null
+	cancellationCompletedByMemberId: string | null
 	currency: string
 	plannedStartAt: string | null
 	plannedEndAt: string | null
@@ -411,11 +451,14 @@ export type RentalDetailResponse = {
 	invoice: RentalInvoiceSummary | null
 	agreement: RentalAgreementSummary | null
 	payments: RentalPaymentSummary[]
+	refunds: RentalPaymentRefundSummary[]
 	financials: {
 		invoiceTotal: number
 		scheduledOutstanding: number
 		extraChargesOutstanding: number
 		totalPaid: number
+		totalRefunded: number
+		netCollected: number
 		depositHeld: number
 		depositReleased: number
 		depositApplied: number
@@ -433,6 +476,8 @@ export type RentalDetailResponse = {
 		canCloseRental: boolean
 		canCompleteReturn: boolean
 		canCancel: boolean
+		canConfirmCashRefund: boolean
+		isCancelling: boolean
 		missingPickupInspection: boolean
 		hasReturnInspection: boolean
 		hasRequiredReturnConditionEvidence: boolean
@@ -441,6 +486,14 @@ export type RentalDetailResponse = {
 		requiresDepositResolution: boolean
 		hasOpenExtraCharges: boolean
 	}
+	cancellation: {
+		reason: RentalCancellationReason | null
+		note: string | null
+		requestedAt: string | null
+		completedAt: string | null
+		requestedByMemberId: string | null
+		completedByMemberId: string | null
+	} | null
 	inspections: RentalInspectionSummary[]
 	damages: RentalDamageSummary[]
 	extraCharges: RentalChargeSummary[]
@@ -536,6 +589,24 @@ export type RentalCommitPayload = {
 
 export type RentalCommitResponse = RentalDetailResponse
 
+export type CancelRentalPayload = {
+	reason: RentalCancellationReason
+	note?: string
+}
+
+export type CancelRentalResponse = {
+	rentalId: string
+	status: RentalStatus
+	cancellation: RentalDetailResponse["cancellation"]
+	refunds: RentalPaymentRefundSummary[]
+}
+
+export type ConfirmCashRefundResponse = {
+	rentalId: string
+	status: RentalStatus
+	refund: RentalPaymentRefundSummary
+}
+
 export type PrepareRentalPaymentPayload = {
 	paymentMethodType: RentalPaymentMethodType
 	scheduleId?: string
@@ -558,11 +629,11 @@ export type CollectCashPaymentResponse = {
 
 export type ConfirmRentalPaymentPayload =
 	| {
-		paymentIntentId: string
-	}
+			paymentIntentId: string
+	  }
 	| {
-		setupIntentId: string
-	}
+			setupIntentId: string
+	  }
 
 export type ConfirmRentalPaymentResponse = {
 	status: RentalPaymentSummary["status"]
@@ -686,16 +757,16 @@ export type CollectRentalChargeResponse = {
 
 export type ResolveRentalDepositPayload =
 	| {
-		action: "release" | "refund" | "retain"
-		amount: number
-		note?: string
-	}
+			action: "release" | "refund" | "retain"
+			amount: number
+			note?: string
+	  }
 	| {
-		action: "apply_to_charge"
-		amount: number
-		chargeId: string
-		note?: string
-	}
+			action: "apply_to_charge"
+			amount: number
+			chargeId: string
+			note?: string
+	  }
 
 export type ResolveRentalDepositResponse = {
 	depositEvent: RentalDepositEventSummary

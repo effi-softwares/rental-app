@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import {
 	type RentalChargeKind,
 	type RentalChargeSummary,
@@ -418,14 +419,17 @@ export function RentalReturnDrawer({
 	detail,
 	onUpdated,
 }: RentalReturnDrawerProps) {
-	const saveInspectionMutation = useSaveRentalInspectionMutation()
-	const createChargeMutation = useCreateRentalChargeMutation()
-	const updateChargeMutation = useUpdateRentalChargeMutation()
-	const collectCashMutation = useCollectCashPaymentMutation()
-	const preparePaymentMutation = usePrepareRentalPaymentMutation()
-	const collectChargeMutation = useCollectRentalChargeMutation()
-	const resolveDepositMutation = useResolveRentalDepositMutation()
-	const returnMutation = useReturnRentalMutation()
+	const authContextQuery = useAuthContextQuery()
+	const organizationId =
+		authContextQuery.data?.viewer.activeOrganizationId ?? undefined
+	const saveInspectionMutation = useSaveRentalInspectionMutation(organizationId)
+	const createChargeMutation = useCreateRentalChargeMutation(organizationId)
+	const updateChargeMutation = useUpdateRentalChargeMutation(organizationId)
+	const collectCashMutation = useCollectCashPaymentMutation(organizationId)
+	const preparePaymentMutation = usePrepareRentalPaymentMutation(organizationId)
+	const collectChargeMutation = useCollectRentalChargeMutation(organizationId)
+	const resolveDepositMutation = useResolveRentalDepositMutation(organizationId)
+	const returnMutation = useReturnRentalMutation(organizationId)
 
 	const [step, setStep] = useState(0)
 	const [actualEndAt, setActualEndAt] = useState("")

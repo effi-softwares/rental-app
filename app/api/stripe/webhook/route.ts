@@ -8,9 +8,11 @@ import {
 	rental,
 	rentalInvoice,
 	rentalPayment,
+	rentalPaymentRefund,
 	rentalPaymentSchedule,
 } from "@/lib/db/schema/rentals"
 import { stripeWebhookEvent } from "@/lib/db/schema/workspace"
+import { continueCancellingRental } from "@/lib/rentals/cancellation"
 import { requireStripeServer } from "@/lib/stripe/server"
 import {
 	publishWorkspaceRealtimeEvents,
@@ -61,6 +63,43 @@ function buildBillingAttentionRealtimeEvents(input: {
 				summary: input.errorMessage ?? "Stripe webhook reconciliation failed.",
 				payload: {
 					stripeEventId: input.event.id,
+				},
+			},
+		]
+	}
+
+	if (
+		input.event.type.startsWith("refund.") ||
+		input.event.type === "charge.refunded"
+	) {
+		const refundLike = input.event.data.object as Stripe.Refund & {
+			failure_reason?: string | null
+			status?: string | null
+		}
+		const isFailed =
+			input.event.type === "refund.failed" ||
+			refundLike.status === "failed" ||
+			Boolean(refundLike.failure_reason)
+
+		if (!isFailed) {
+			return []
+		}
+
+		return [
+			{
+				organizationId: input.context.organizationId,
+				branchId: input.context.branchId,
+				topic: "billing_attention",
+				eventType: input.event.type,
+				entityType,
+				entityId,
+				attention: "critical",
+				summary:
+					refundLike.failure_reason ??
+					"Stripe refund failed and needs attention.",
+				payload: {
+					stripeEventId: input.event.id,
+					rentalId: input.context.rentalId,
 				},
 			},
 		]
@@ -442,6 +481,45 @@ function getStripePaymentMethodId(
 		: (object.payment_method?.id ?? null)
 }
 
+function normalizeRefundStatus(
+	status: Stripe.Refund["status"] | null | undefined,
+): typeof rentalPaymentRefund.$inferSelect.status {
+	switch (status) {
+		case "succeeded":
+			return "succeeded"
+		case "failed":
+			return "failed"
+		case "canceled":
+			return "cancelled"
+		default:
+			return "processing"
+	}
+}
+
+function getRefundReference(refund: Stripe.Refund) {
+	const destinationDetails = refund.destination_details
+	if (!destinationDetails || typeof destinationDetails !== "object") {
+		return null
+	}
+
+	const cardDetails =
+		"card" in destinationDetails &&
+		destinationDetails.card &&
+		typeof destinationDetails.card === "object"
+			? destinationDetails.card
+			: null
+
+	if (
+		cardDetails &&
+		"reference" in cardDetails &&
+		typeof cardDetails.reference === "string"
+	) {
+		return cardDetails.reference
+	}
+
+	return null
+}
+
 async function resolveWebhookContext(event: Stripe.Event) {
 	const object = event.data.object as unknown as Record<string, unknown>
 	const objectId = typeof object.id === "string" ? object.id : null
@@ -451,16 +529,20 @@ async function resolveWebhookContext(event: Stripe.Event) {
 			? eq(rentalPayment.stripePaymentIntentId, objectId)
 			: event.type.startsWith("setup_intent.") && objectId
 				? eq(rentalPayment.stripeSetupIntentId, objectId)
-				: event.type.startsWith("invoice.") && objectId
-					? or(
-							eq(rentalPayment.stripeInvoiceId, objectId),
-							eq(rentalInvoice.stripeInvoiceId, objectId),
-						)
-					: event.type.startsWith("customer.subscription.") && objectId
-						? eq(rentalPayment.stripeSubscriptionId, objectId)
-						: event.type.startsWith("subscription_schedule.") && objectId
-							? eq(rentalPayment.stripeSubscriptionScheduleId, objectId)
-							: null
+				: event.type.startsWith("refund.") && objectId
+					? eq(rentalPaymentRefund.stripeRefundId, objectId)
+					: event.type === "charge.refunded" && objectId
+						? eq(rentalPayment.stripeChargeId, objectId)
+						: event.type.startsWith("invoice.") && objectId
+							? or(
+									eq(rentalPayment.stripeInvoiceId, objectId),
+									eq(rentalInvoice.stripeInvoiceId, objectId),
+								)
+							: event.type.startsWith("customer.subscription.") && objectId
+								? eq(rentalPayment.stripeSubscriptionId, objectId)
+								: event.type.startsWith("subscription_schedule.") && objectId
+									? eq(rentalPayment.stripeSubscriptionScheduleId, objectId)
+									: null
 
 	if (!paymentPredicate) {
 		return {
@@ -528,6 +610,26 @@ async function resolveWebhookContext(event: Stripe.Event) {
 		)
 	}
 
+	if (event.type.startsWith("refund.")) {
+		const rows = await db
+			.select({
+				organizationId: rentalPaymentRefund.organizationId,
+				branchId: rentalPaymentRefund.branchId,
+				rentalId: rentalPaymentRefund.rentalId,
+			})
+			.from(rentalPaymentRefund)
+			.where(eq(rentalPaymentRefund.stripeRefundId, objectId ?? ""))
+			.limit(1)
+
+		return (
+			rows[0] ?? {
+				organizationId: null,
+				branchId: null,
+				rentalId: null,
+			}
+		)
+	}
+
 	const rows = await db
 		.select({
 			organizationId: rentalPayment.organizationId,
@@ -545,6 +647,78 @@ async function resolveWebhookContext(event: Stripe.Event) {
 			rentalId: null,
 		}
 	)
+}
+
+async function reconcileRefund(input: {
+	tx: DbExecutor
+	refund: Stripe.Refund
+}) {
+	const status = normalizeRefundStatus(input.refund.status)
+	const now = new Date()
+	const matchedRefundRows = await input.tx
+		.select()
+		.from(rentalPaymentRefund)
+		.where(eq(rentalPaymentRefund.stripeRefundId, input.refund.id))
+
+	for (const refundRow of matchedRefundRows) {
+		await input.tx
+			.update(rentalPaymentRefund)
+			.set({
+				status,
+				reference: getRefundReference(input.refund),
+				failureReason: input.refund.failure_reason ?? null,
+				updatedAt: now,
+			})
+			.where(eq(rentalPaymentRefund.id, refundRow.id))
+
+		if (status === "succeeded") {
+			await input.tx
+				.update(rentalPayment)
+				.set({
+					status: "refunded",
+					refundedAt: now,
+					updatedAt: now,
+				})
+				.where(eq(rentalPayment.id, refundRow.paymentId))
+		}
+	}
+}
+
+async function reconcileChargeRefunded(input: {
+	tx: DbExecutor
+	charge: Stripe.Charge
+}) {
+	if (
+		input.charge.amount <= 0 ||
+		input.charge.amount_refunded < input.charge.amount
+	) {
+		return
+	}
+
+	const now = new Date()
+	const matchedPayments = await input.tx
+		.select()
+		.from(rentalPayment)
+		.where(eq(rentalPayment.stripeChargeId, input.charge.id))
+
+	for (const payment of matchedPayments) {
+		await input.tx
+			.update(rentalPayment)
+			.set({
+				status: "refunded",
+				refundedAt: now,
+				updatedAt: now,
+			})
+			.where(eq(rentalPayment.id, payment.id))
+
+		await input.tx
+			.update(rentalPaymentRefund)
+			.set({
+				status: "succeeded",
+				updatedAt: now,
+			})
+			.where(eq(rentalPaymentRefund.paymentId, payment.id))
+	}
 }
 
 async function reconcileRecurringScheduleRowForInvoice(input: {
@@ -754,6 +928,7 @@ async function reconcileRentalLifecycle(input: {
 		record.status === "draft" ||
 		record.status === "completed" ||
 		record.status === "cancelled" ||
+		record.status === "cancelling" ||
 		record.status === "active"
 	) {
 		return
@@ -1198,6 +1373,16 @@ export async function POST(request: Request) {
 					tx,
 					intent: event.data.object as Stripe.SetupIntent,
 				})
+			} else if (event.type.startsWith("refund.")) {
+				await reconcileRefund({
+					tx,
+					refund: event.data.object as Stripe.Refund,
+				})
+			} else if (event.type === "charge.refunded") {
+				await reconcileChargeRefunded({
+					tx,
+					charge: event.data.object as Stripe.Charge,
+				})
 			} else if (event.type.startsWith("invoice.")) {
 				await reconcileInvoice({
 					tx,
@@ -1265,6 +1450,19 @@ export async function POST(request: Request) {
 
 	if (result.duplicate) {
 		return NextResponse.json({ received: true, duplicate: true })
+	}
+
+	if (
+		result.status === "processed" &&
+		context.organizationId &&
+		context.rentalId
+	) {
+		try {
+			await continueCancellingRental({
+				organizationId: context.organizationId,
+				rentalId: context.rentalId,
+			})
+		} catch {}
 	}
 
 	return NextResponse.json({ received: true, status: result.status })
