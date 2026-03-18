@@ -8,17 +8,17 @@ export type RentalNextAction = "none" | "handover" | "return"
 
 type RentalPrimaryAction =
 	| {
-			type: "none"
-			label: null
-			description: string
-			disabled: boolean
-	  }
+		type: "none"
+		label: null
+		description: string
+		disabled: boolean
+	}
 	| {
-			type: "finalize" | "handover" | "start_return"
-			label: string
-			description: string
-			disabled: boolean
-	  }
+		type: "finalize" | "handover" | "start_return"
+		label: string
+		description: string
+		disabled: boolean
+	}
 
 export function getRentalPriorityRank(status: RentalStatus) {
 	switch (status) {
