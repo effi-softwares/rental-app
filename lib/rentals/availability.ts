@@ -163,6 +163,7 @@ function buildVehicleSummary(
 		seats: row.seats,
 		frontImage: pickFrontImage(row.images),
 		rates,
+		latestConditionSnapshot: null,
 	}
 }
 

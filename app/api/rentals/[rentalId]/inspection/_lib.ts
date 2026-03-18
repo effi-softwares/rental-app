@@ -254,7 +254,7 @@ export async function saveRentalInspection(input: {
 			.update(vehicle)
 			.set({
 				latestConditionSnapshot: {
-					rating: inspection.conditionRating,
+					rating: inspection.conditionRating || 'fair',
 					inspectionStage: input.stage,
 					rentalId: input.rentalId,
 					inspectionId: inspection.id,
