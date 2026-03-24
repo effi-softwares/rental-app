@@ -28,6 +28,7 @@ cp .env.example .env.local
 - `DATABASE_URL`
 - `BETTER_AUTH_URL`
 - `BETTER_AUTH_SECRET` (must be a real random secret, not a placeholder)
+- `NEXT_PUBLIC_PLATFORM_SIGNUP_ENABLED` (`true` to enable self-service owner sign-up and multi-organization switching; omit or set to `false` to hide them)
 - `RESEND_API_KEY` (required for invitation emails)
 - `RESEND_FROM_EMAIL` (sender address for invitation emails)
 

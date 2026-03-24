@@ -6,6 +6,7 @@ import { Suspense } from "react"
 import { AuthPageShell } from "@/components/auth/auth-page-shell"
 import { AuthPanel } from "@/components/auth/auth-panel"
 import { SignInForm } from "@/components/auth/sign-in-form"
+import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import { routes } from "@/config/routes"
 import { auth } from "@/lib/auth"
 import { signUpOnboardingGateCookieName } from "@/lib/auth-flow"
@@ -21,9 +22,9 @@ export default async function SignInPage() {
 
 	if (session) {
 		const cookieStore = await cookies()
-		const hasSignUpOnboardingGate = Boolean(
-			cookieStore.get(signUpOnboardingGateCookieName)?.value,
-		)
+		const hasSignUpOnboardingGate =
+			isPlatformSignupEnabled &&
+			Boolean(cookieStore.get(signUpOnboardingGateCookieName)?.value)
 
 		redirect(
 			hasSignUpOnboardingGate ? routes.auth.signUpOnboarding : routes.app.root,

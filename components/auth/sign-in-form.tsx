@@ -15,6 +15,7 @@ import {
 	FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import { routes } from "@/config/routes"
 import { mainQueryKeys } from "@/features/main/queries/keys"
 import { authClient } from "@/lib/auth-client"
@@ -161,15 +162,17 @@ export function SignInForm() {
 						{isPasskeySubmitting ? "Signing in..." : "Continue with passkey"}
 					</Button>
 
-					<p className="text-center text-sm text-muted-foreground">
-						New owner?{" "}
-						<Link
-							href={routes.auth.signUp}
-							className="font-medium text-foreground underline underline-offset-4"
-						>
-							Create account
-						</Link>
-					</p>
+					{isPlatformSignupEnabled ? (
+						<p className="text-center text-sm text-muted-foreground">
+							New owner?{" "}
+							<Link
+								href={routes.auth.signUp}
+								className="font-medium text-foreground underline underline-offset-4"
+							>
+								Create account
+							</Link>
+						</p>
+					) : null}
 				</FieldGroup>
 			</form>
 		</AuthPanel>

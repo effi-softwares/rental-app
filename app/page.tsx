@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 
+import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import { routes } from "@/config/routes"
 import { auth } from "@/lib/auth"
 import { signUpOnboardingGateCookieName } from "@/lib/auth-flow"
@@ -21,9 +22,9 @@ export default async function Page() {
 	}
 
 	const cookieStore = await cookies()
-	const hasSignUpOnboardingGate = Boolean(
-		cookieStore.get(signUpOnboardingGateCookieName)?.value,
-	)
+	const hasSignUpOnboardingGate =
+		isPlatformSignupEnabled &&
+		Boolean(cookieStore.get(signUpOnboardingGateCookieName)?.value)
 
 	if (!hasSignUpOnboardingGate) {
 		const resolved = await resolveAuthContext()

@@ -20,6 +20,7 @@ import {
 	SidebarRail,
 	SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import { OrganizationSwitcher } from "./organization-switcher"
@@ -92,7 +93,7 @@ export function WorkspaceSidebar() {
 					</div>
 				</div>
 
-				<OrganizationSwitcher />
+				{isPlatformSignupEnabled ? <OrganizationSwitcher /> : null}
 			</SidebarHeader>
 
 			<SidebarSeparator />

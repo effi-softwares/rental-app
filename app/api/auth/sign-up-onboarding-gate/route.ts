@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import {
 	signUpOnboardingGateCookieName,
 	signUpOnboardingGateMaxAgeSeconds,
@@ -7,6 +8,10 @@ import {
 import { resolveAuthContext } from "@/lib/authorization/server"
 
 export async function POST() {
+	if (!isPlatformSignupEnabled) {
+		return NextResponse.json({ error: "Sign-up is disabled." }, { status: 404 })
+	}
+
 	const resolved = await resolveAuthContext()
 
 	if (!resolved) {
