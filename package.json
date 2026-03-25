@@ -15,7 +15,8 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
-		"db:seed:vehicles": "node ./scripts/seed-vehicle-lookup.mjs"
+		"db:seed:vehicles": "node ./scripts/seed-vehicle-lookup.mjs",
+		"db:seed:owner": "tsx ./scripts/seed-owner-user.ts"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.2.0",
@@ -67,6 +68,7 @@
 		"dotenv": "^17.3.1",
 		"drizzle-kit": "^0.31.9",
 		"tailwindcss": "^4",
+		"tsx": "^4.21.0",
 		"typescript": "^5"
 	}
 }

@@ -1,10 +1,11 @@
 "use client"
 
-import { LayoutGrid, Shield } from "lucide-react"
+import { LayoutGrid } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useMemo } from "react"
 
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
 import { Badge } from "@/components/ui/badge"
 import {
 	Sidebar,
@@ -18,7 +19,6 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarRail,
-	SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import { routes } from "@/config/routes"
@@ -79,10 +79,10 @@ export function WorkspaceSidebar() {
 	return (
 		<Sidebar variant="sidebar" collapsible="offcanvas">
 			<SidebarHeader className="gap-3">
-				<div className="bg-sidebar-accent/40 rounded-lg border border-sidebar-border/70 p-3">
+				<div className=" p-2">
 					<div className="flex items-center gap-2">
 						<div className="bg-sidebar-primary/15 text-sidebar-primary inline-flex size-8 items-center justify-center rounded-md">
-							<LayoutGrid className="size-4" />
+							<LayoutGrid className="size-2" />
 						</div>
 						<div>
 							<p className="text-sm font-medium leading-tight">Rental Ops</p>
@@ -92,12 +92,8 @@ export function WorkspaceSidebar() {
 						</div>
 					</div>
 				</div>
-
 				{isPlatformSignupEnabled ? <OrganizationSwitcher /> : null}
 			</SidebarHeader>
-
-			<SidebarSeparator />
-
 			<SidebarContent>
 				{groupedNavigation.map((group) => (
 					<SidebarGroup key={group.group}>
@@ -110,24 +106,9 @@ export function WorkspaceSidebar() {
 					</SidebarGroup>
 				))}
 			</SidebarContent>
-
-			<SidebarSeparator />
-
 			<SidebarFooter>
-				<div className="rounded-lg border border-sidebar-border/70 p-2">
-					<div className="flex items-center gap-2">
-						<div className="bg-sidebar-accent text-sidebar-accent-foreground inline-flex size-8 items-center justify-center rounded-md">
-							<Shield className="size-4" />
-						</div>
-						<div className="min-w-0">
-							<p className="text-xs font-medium capitalize leading-tight">
-								{viewerRole}
-							</p>
-							<Badge variant="secondary" className="mt-1 text-[10px]">
-								Role scope active
-							</Badge>
-						</div>
-					</div>
+				<div className="p-2 w-full flex items-center gap-2 border-t ">
+					<AnimatedThemeToggler className="ml-auto" />
 				</div>
 			</SidebarFooter>
 
