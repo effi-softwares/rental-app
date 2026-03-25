@@ -1,13 +1,14 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Search } from "lucide-react"
+import { ChevronDown, Search } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
 	Suspense,
 	startTransition,
 	useCallback,
 	useEffect,
+	useMemo,
 	useState,
 } from "react"
 import { toast } from "sonner"
@@ -22,13 +23,17 @@ import { CustomerTable } from "@/components/customers/customer-table"
 import { ResponsiveConfirmDialog } from "@/components/customers/responsive-confirm-dialog"
 import { Input } from "@/components/ui/input"
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
+	InputGroup,
+	InputGroupAddon,
+	InputGroupButton,
+	InputGroupInput,
+} from "@/components/ui/input-group"
+import { ResponsiveDrawer } from "@/components/ui/responsive-drawer"
 import { Separator } from "@/components/ui/separator"
+import {
+	AppWheelPicker,
+	type WheelPickerOption,
+} from "@/components/ui/wheel-picker"
 import {
 	CUSTOMER_STATUSES,
 	CUSTOMER_VERIFICATION_STATUSES,
@@ -42,6 +47,10 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { resolveErrorMessage } from "@/lib/errors"
 
 const pageSizeOptions = ["10", "25", "50", "100"] as const
+type WheelFilterOption = {
+	value: string
+	label: string
+}
 
 function parsePositiveInt(value: string | null, fallback: number) {
 	const parsed = Number(value)
@@ -106,6 +115,88 @@ function CustomerSearchInput({
 				placeholder="Search by customer, email, or phone"
 			/>
 		</div>
+	)
+}
+
+function WheelFilterField({
+	value,
+	options,
+	placeholder,
+	title,
+	description,
+	onValueChange,
+}: {
+	value: string
+	options: WheelFilterOption[]
+	placeholder: string
+	title: string
+	description: string
+	onValueChange: (value: string) => void
+}) {
+	const [open, setOpen] = useState(false)
+	const wheelOptions = options as WheelPickerOption<string>[]
+	const safeValue =
+		options.find((option) => option.value === value)?.value ??
+		options[0]?.value ??
+		""
+	const selectedOption =
+		options.find((option) => option.value === safeValue) ?? options[0] ?? null
+	const [pendingValue, setPendingValue] = useState(safeValue)
+
+	useEffect(() => {
+		if (!open) {
+			setPendingValue(safeValue)
+		}
+	}, [open, safeValue])
+
+	return (
+		<>
+			<InputGroup className="h-11">
+				<InputGroupInput
+					readOnly
+					value={selectedOption?.label ?? ""}
+					placeholder={placeholder}
+					onClick={() => setOpen(true)}
+					className="h-full cursor-pointer"
+				/>
+				<InputGroupAddon align="inline-end">
+					<InputGroupButton size="icon-sm" onClick={() => setOpen(true)}>
+						<ChevronDown className="size-4" />
+						<span className="sr-only">Open selector</span>
+					</InputGroupButton>
+				</InputGroupAddon>
+			</InputGroup>
+
+			<ResponsiveDrawer
+				open={open}
+				onOpenChange={setOpen}
+				title={title}
+				description={description}
+				desktopClassName="max-h-[88vh] overflow-hidden sm:max-w-sm"
+				mobileClassName="max-h-[88vh] rounded-t-3xl p-0"
+			>
+				<div className="space-y-4 pt-1">
+					<AppWheelPicker
+						value={pendingValue}
+						onValueChange={setPendingValue}
+						options={wheelOptions}
+						visibleCount={14}
+						optionItemHeight={42}
+						className="rounded-3xl p-4"
+					/>
+					<button
+						type="button"
+						className="bg-primary text-primary-foreground h-12 w-full rounded-2xl px-4 text-sm font-medium"
+						onClick={() => {
+							onValueChange(pendingValue)
+							setOpen(false)
+						}}
+					>
+						Apply
+					</button>
+				</div>
+			</ResponsiveDrawer>
+		</>
 	)
 }
 
@@ -322,6 +413,32 @@ function CustomerManagementContent() {
 	const listPage = listQuery.data?.page.page ?? page
 	const pageCount = listQuery.data?.page.pageCount ?? 1
 	const total = listQuery.data?.page.total ?? 0
+	const verificationFilterOptions = useMemo<WheelFilterOption[]>(
+		() => [
+			{ value: "__all__", label: "All verification" },
+			...CUSTOMER_VERIFICATION_STATUSES.map((statusValue) => ({
+				value: statusValue,
+				label: formatVerificationStatus(statusValue),
+			})),
+		],
+		[],
+	)
+	const statusFilterOptions = useMemo<WheelFilterOption[]>(
+		() => [
+			{ value: "all", label: "All statuses" },
+			{ value: "active", label: "Active" },
+			{ value: "banned", label: "Banned" },
+		],
+		[],
+	)
+	const pageSizeFilterOptions = useMemo<WheelFilterOption[]>(
+		() =>
+			pageSizeOptions.map((option) => ({
+				value: option,
+				label: `${option} per page`,
+			})),
+		[],
+	)
 
 	if (!activeOrganizationId) {
 		return (
@@ -364,7 +481,7 @@ function CustomerManagementContent() {
 				<section className="space-y-4">
 					<div className="space-y-2">
 						<div className="space-y-1">
-							<h2 className="text-base font-semibold">Customer table</h2>
+							<h2 className="text-base font-semibold">Customer details</h2>
 							<p className="text-muted-foreground text-sm">
 								Search, filter, and open any row for a focused right-side detail
 								view.
@@ -373,7 +490,7 @@ function CustomerManagementContent() {
 						<Separator />
 					</div>
 
-					<div className="grid gap-3 rounded-2xl border p-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(4,minmax(0,1fr))]">
+					<div className="grid gap-3 rounded-2xl p-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
 						<CustomerSearchInput
 							key={search}
 							initialValue={search}
@@ -389,34 +506,12 @@ function CustomerManagementContent() {
 							}
 						/>
 
-						<Select
-							value={branchId || "__all__"}
-							onValueChange={(value) =>
-								updateUrl((params) => {
-									if (value === "__all__") {
-										params.delete("branchId")
-									} else {
-										params.set("branchId", value)
-									}
-									params.set("page", "1")
-								})
-							}
-						>
-							<SelectTrigger className="h-11 w-full">
-								<SelectValue placeholder="All branches" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="__all__">All branches</SelectItem>
-								{branches.map((branch) => (
-									<SelectItem key={branch.id} value={branch.id}>
-										{branch.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-
-						<Select
+						<WheelFilterField
 							value={verificationStatus || "__all__"}
+							options={verificationFilterOptions}
+							placeholder="All verification"
+							title="Filter verification"
+							description="Choose which verification state to show in the table."
 							onValueChange={(value) =>
 								updateUrl((params) => {
 									if (value === "__all__") {
@@ -427,21 +522,9 @@ function CustomerManagementContent() {
 									params.set("page", "1")
 								})
 							}
-						>
-							<SelectTrigger className="h-11 w-full">
-								<SelectValue placeholder="All verification" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="__all__">All verification</SelectItem>
-								{CUSTOMER_VERIFICATION_STATUSES.map((statusValue) => (
-									<SelectItem key={statusValue} value={statusValue}>
-										{formatVerificationStatus(statusValue)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						/>
 
-						<Select
+						<WheelFilterField
 							value={
 								CUSTOMER_STATUSES.includes(
 									status as (typeof CUSTOMER_STATUSES)[number],
@@ -449,6 +532,10 @@ function CustomerManagementContent() {
 									? status
 									: "all"
 							}
+							options={statusFilterOptions}
+							placeholder="All statuses"
+							title="Filter customer status"
+							description="Choose whether to show active, banned, or all customers."
 							onValueChange={(value) =>
 								updateUrl((params) => {
 									if (value === "all") {
@@ -459,37 +546,21 @@ function CustomerManagementContent() {
 									params.set("page", "1")
 								})
 							}
-						>
-							<SelectTrigger className="h-11 w-full">
-								<SelectValue placeholder="All statuses" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All statuses</SelectItem>
-								<SelectItem value="active">Active</SelectItem>
-								<SelectItem value="banned">Banned</SelectItem>
-							</SelectContent>
-						</Select>
+						/>
 
-						<Select
+						<WheelFilterField
 							value={String(pageSize)}
+							options={pageSizeFilterOptions}
+							placeholder="Page size"
+							title="Rows per page"
+							description="Choose how many customer rows to load per page."
 							onValueChange={(value) =>
 								updateUrl((params) => {
 									params.set("pageSize", value)
 									params.set("page", "1")
 								})
 							}
-						>
-							<SelectTrigger className="h-11 w-full">
-								<SelectValue placeholder="Page size" />
-							</SelectTrigger>
-							<SelectContent>
-								{pageSizeOptions.map((option) => (
-									<SelectItem key={option} value={option}>
-										{option} per page
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						/>
 					</div>
 
 					<CustomerTable
