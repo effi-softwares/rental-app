@@ -39,7 +39,10 @@ type FleetMapSceneProps = {
 		selectedZoom: number
 		pitch: number
 		bearing: number
-		styleUrl: string
+		styleUrls: {
+			light: string
+			dark: string
+		}
 	}
 	emptyTitle?: string
 	emptyDescription?: string
@@ -106,7 +109,7 @@ const VIBRANT_MAP_COLORS = {
 } as const
 
 const MAP_GLASS_PANEL_CLASS =
-	"border border-white/75 bg-[rgba(247,250,251,0.88)] text-slate-950 shadow-[0_24px_64px_-36px_rgba(15,23,42,0.28)] backdrop-blur-xl"
+	"border border-border/70 bg-background/92 text-foreground shadow-lg shadow-black/5 backdrop-blur-xl"
 
 type PaintPropertyName = Parameters<MapLibreGL.Map["setPaintProperty"]>[1]
 type PaintPropertyValue = Parameters<MapLibreGL.Map["setPaintProperty"]>[2]
@@ -855,16 +858,16 @@ export function FleetMapScene({
 	const selectedSnapshot = selectedVehicle?.snapshot ?? null
 	const mapGlassPanelClass =
 		chromeStyle === "flat"
-			? "border border-white/70 bg-[rgba(247,250,251,0.92)] text-slate-950 backdrop-blur-xl"
+			? "border border-border/70 bg-background/95 text-foreground backdrop-blur-xl"
 			: MAP_GLASS_PANEL_CLASS
 	const mapControlsClassName =
 		chromeStyle === "flat"
-			? "[&>div]:overflow-hidden [&>div]:rounded-[12px] [&>div]:border-white/75 [&>div]:bg-[rgba(247,250,251,0.92)] [&_button]:text-slate-800 [&_button]:hover:bg-slate-900/6 [&_svg]:text-slate-700"
-			: "[&>div]:overflow-hidden [&>div]:rounded-[18px] [&>div]:border-white/75 [&>div]:bg-[rgba(247,250,251,0.88)] [&>div]:shadow-[0_20px_44px_-30px_rgba(15,23,42,0.24)] [&_button]:text-slate-800 [&_button]:hover:bg-slate-900/6 [&_svg]:text-slate-700"
+			? "[&>div]:overflow-hidden [&>div]:rounded-[12px] [&>div]:border-border/70 [&>div]:bg-background/95 [&_button]:text-foreground [&_button]:hover:bg-accent [&_button]:hover:text-accent-foreground [&_svg]:text-muted-foreground"
+			: "[&>div]:overflow-hidden [&>div]:rounded-[18px] [&>div]:border-border/70 [&>div]:bg-background/92 [&>div]:shadow-lg [&>div]:shadow-black/5 [&_button]:text-foreground [&_button]:hover:bg-accent [&_button]:hover:text-accent-foreground [&_svg]:text-muted-foreground"
 	const emptyStateClassName =
 		chromeStyle === "flat"
-			? "max-w-sm rounded-[16px] border border-dashed border-slate-300/80 bg-[rgba(247,250,251,0.94)] px-6 py-5 text-center text-slate-950 backdrop-blur-xl [&_.text-muted-foreground]:text-slate-500"
-			: "max-w-sm rounded-[28px] border border-dashed border-slate-300/80 bg-[rgba(247,250,251,0.9)] px-6 py-5 text-center text-slate-950 shadow-[0_24px_64px_-36px_rgba(15,23,42,0.22)] backdrop-blur-xl [&_.text-muted-foreground]:text-slate-500"
+			? "max-w-sm rounded-[16px] border border-dashed border-border/80 bg-background/95 px-6 py-5 text-center text-foreground backdrop-blur-xl"
+			: "max-w-sm rounded-[28px] border border-dashed border-border/80 bg-background/92 px-6 py-5 text-center text-foreground shadow-lg shadow-black/5 backdrop-blur-xl"
 	const routeCoordinates = trail.map((point) => [
 		point.longitude,
 		point.latitude,
@@ -915,8 +918,8 @@ export function FleetMapScene({
 				maxZoom={18}
 				minZoom={3}
 				styles={{
-					light: defaultViewport.styleUrl,
-					dark: defaultViewport.styleUrl,
+					light: defaultViewport.styleUrls.light,
+					dark: defaultViewport.styleUrls.dark,
 				}}
 			>
 				<FleetMapStyleController />
@@ -960,7 +963,7 @@ export function FleetMapScene({
 			<div className="pointer-events-none absolute inset-x-4 top-4 z-10 flex items-start justify-between gap-3">
 				<div
 					className={cn(
-						"pointer-events-auto flex min-w-0 flex-1 items-center gap-3 rounded-[14px] px-4 py-3 [&_.text-muted-foreground]:text-slate-500 [&_.text-primary]:text-sky-700",
+						"pointer-events-auto flex min-w-0 flex-1 items-center gap-3 rounded-[14px] px-4 py-3",
 						mapGlassPanelClass,
 					)}
 				>
@@ -979,8 +982,8 @@ export function FleetMapScene({
 						className={cn(
 							"inline-flex h-10 items-center gap-2 rounded-[16px] px-3 text-sm font-medium transition",
 							isThreeD
-								? "bg-slate-800 text-white hover:bg-slate-700"
-								: "text-slate-700 hover:bg-slate-900/6",
+								? "bg-primary text-primary-foreground hover:bg-primary/90"
+								: "text-foreground hover:bg-accent hover:text-accent-foreground",
 						)}
 					>
 						<Building2 className="size-4" />
@@ -989,7 +992,7 @@ export function FleetMapScene({
 					<button
 						type="button"
 						onClick={() => setRecenterToken((value) => value + 1)}
-						className="inline-flex h-10 items-center gap-2 rounded-[16px] px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-900/6"
+						className="inline-flex h-10 items-center gap-2 rounded-[16px] px-3 text-sm font-medium text-foreground transition hover:bg-accent hover:text-accent-foreground"
 					>
 						<Crosshair className="size-4" />
 						Recenter
@@ -999,16 +1002,11 @@ export function FleetMapScene({
 
 			{selectedVehicle ? (
 				<div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex">
-					<div
-						className={cn(
-							"rounded-[14px] px-4 py-3 [&_.text-muted-foreground]:text-slate-500",
-							mapGlassPanelClass,
-						)}
-					>
+					<div className={cn("rounded-[14px] px-4 py-3", mapGlassPanelClass)}>
 						<p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
 							Focused vehicle
 						</p>
-						<p className="mt-1 max-w-[18rem] truncate text-sm font-semibold text-slate-950">
+						<p className="mt-1 max-w-[18rem] truncate text-sm font-semibold">
 							{selectedVehicle.label}
 						</p>
 						<p className="text-xs text-muted-foreground">
@@ -1019,7 +1017,7 @@ export function FleetMapScene({
 			) : (
 				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
 					<div className={cn(emptyStateClassName)}>
-						<p className="text-sm font-semibold text-slate-950">{emptyTitle}</p>
+						<p className="text-sm font-semibold">{emptyTitle}</p>
 						<p className="mt-2 text-sm text-muted-foreground">
 							{emptyDescription}
 						</p>

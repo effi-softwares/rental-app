@@ -80,6 +80,24 @@
 	--sidebar-accent-foreground: oklch(0.205 0 0);
 	--sidebar-border: oklch(0.922 0 0);
 	--sidebar-ring: oklch(0.708 0 0);
+	--auth-shell-base-a: oklch(0.992 0.004 180);
+	--auth-shell-base-b: oklch(0.982 0.008 165);
+	--auth-grid-line: rgb(15 23 42 / 0.06);
+	--auth-glow-a: rgb(15 160 128 / 0.18);
+	--auth-glow-b: rgb(148 206 186 / 0.2);
+	--auth-visual-border: rgb(255 255 255 / 0.55);
+	--auth-visual-surface-a: rgb(255 255 255 / 0.76);
+	--auth-visual-surface-b: rgb(240 249 245 / 0.82);
+	--auth-visual-shadow: 0 30px 84px -48px rgb(15 23 42 / 0.22);
+	--auth-visual-card-fill: rgb(255 255 255 / 0.56);
+	--auth-visual-card-stroke: rgb(15 23 42 / 0.08);
+	--auth-visual-accent-start: rgb(15 160 128 / 0.95);
+	--auth-visual-accent-end: rgb(108 196 173 / 0.55);
+	--auth-visual-muted-stroke: rgb(15 23 42 / 0.14);
+	--auth-visual-orb-stroke: rgb(15 160 128 / 0.2);
+	--auth-visual-orb-fill: rgb(15 160 128 / 0.18);
+	--auth-visual-curve-a: rgb(15 160 128 / 0.28);
+	--auth-visual-curve-b: rgb(15 23 42 / 0.08);
 }
 
 .dark {
@@ -114,6 +132,24 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
+	--auth-shell-base-a: oklch(0.18 0.008 250);
+	--auth-shell-base-b: oklch(0.14 0.012 190);
+	--auth-grid-line: rgb(248 250 252 / 0.06);
+	--auth-glow-a: rgb(45 212 191 / 0.18);
+	--auth-glow-b: rgb(59 130 246 / 0.14);
+	--auth-visual-border: rgb(255 255 255 / 0.1);
+	--auth-visual-surface-a: rgb(15 23 42 / 0.74);
+	--auth-visual-surface-b: rgb(17 24 39 / 0.88);
+	--auth-visual-shadow: 0 34px 94px -52px rgb(2 6 23 / 0.8);
+	--auth-visual-card-fill: rgb(15 23 42 / 0.58);
+	--auth-visual-card-stroke: rgb(255 255 255 / 0.08);
+	--auth-visual-accent-start: rgb(45 212 191 / 0.95);
+	--auth-visual-accent-end: rgb(125 211 252 / 0.55);
+	--auth-visual-muted-stroke: rgb(226 232 240 / 0.18);
+	--auth-visual-orb-stroke: rgb(94 234 212 / 0.2);
+	--auth-visual-orb-fill: rgb(45 212 191 / 0.2);
+	--auth-visual-curve-a: rgb(94 234 212 / 0.34);
+	--auth-visual-curve-b: rgb(226 232 240 / 0.14);
 }
 
 @layer base {
@@ -143,24 +179,17 @@ body {
 }
 
 .auth-shell-background {
-	background:
-		radial-gradient(
-			circle at top left,
-			oklch(0.99 0.02 165 / 0.95),
-			transparent 26%
-		),
-		radial-gradient(
-			circle at bottom right,
-			oklch(0.96 0.03 175 / 0.9),
-			transparent 34%
-		),
-		linear-gradient(135deg, oklch(0.992 0.004 180), oklch(0.982 0.008 165));
+	background: linear-gradient(
+		135deg,
+		var(--auth-shell-base-a),
+		var(--auth-shell-base-b)
+	);
 }
 
 .auth-grid-lines {
 	background-image:
-		linear-gradient(to right, rgb(15 23 42 / 0.06) 1px, transparent 1px),
-		linear-gradient(to bottom, rgb(15 23 42 / 0.06) 1px, transparent 1px);
+		linear-gradient(to right, var(--auth-grid-line) 1px, transparent 1px),
+		linear-gradient(to bottom, var(--auth-grid-line) 1px, transparent 1px);
 	background-position: 0 0;
 	background-size: 38px 38px;
 	mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.75), transparent 90%);
@@ -173,13 +202,23 @@ body {
 }
 
 .auth-svg-glow-a {
-	background: radial-gradient(circle, rgb(15 160 128 / 0.18), transparent 70%);
+	background: radial-gradient(circle, var(--auth-glow-a), transparent 70%);
 	animation: auth-glow-float-a 12s ease-in-out infinite;
 }
 
 .auth-svg-glow-b {
-	background: radial-gradient(circle, rgb(148 206 186 / 0.2), transparent 70%);
+	background: radial-gradient(circle, var(--auth-glow-b), transparent 70%);
 	animation: auth-glow-float-b 14s ease-in-out infinite;
+}
+
+.auth-visual-surface {
+	border: 1px solid var(--auth-visual-border);
+	background: linear-gradient(
+		135deg,
+		var(--auth-visual-surface-a),
+		var(--auth-visual-surface-b)
+	);
+	box-shadow: var(--auth-visual-shadow);
 }
 
 .auth-svg-float-a {

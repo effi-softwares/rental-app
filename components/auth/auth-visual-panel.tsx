@@ -13,8 +13,8 @@ const visualLabels: Record<
 	{ eyebrow: string; title: string; accent: string }
 > = {
 	"sign-in": {
-		eyebrow: "Secure access",
-		title: "A focused auth screen with a calm visual anchor.",
+		eyebrow: "",
+		title: "",
 		accent: "Sign in",
 	},
 	"sign-up": {
@@ -54,35 +54,56 @@ export function AuthVisualPanel({
 	compact = false,
 }: AuthVisualPanelProps) {
 	const content = visualLabels[variant]
+	const hasCopy = Boolean(content.eyebrow || content.title)
 
 	return (
 		<div
 			className={cn(
-				"relative overflow-hidden rounded-[2rem] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(240,249,245,0.76))]",
-				compact ? "min-h-55 p-5" : "min-h-160 p-8 xl:p-10",
+				"relative h-full overflow-hidden",
+				compact
+					? "min-h-55 p-5"
+					: "min-h-0 p-6 lg:max-h-[calc(100dvh-5rem)] xl:p-8",
 			)}
 		>
 			<div className="auth-grid-lines absolute inset-0 opacity-50" />
 			<div className="auth-svg-glow auth-svg-glow-a absolute left-8 top-12 size-48 rounded-full" />
 			<div className="auth-svg-glow auth-svg-glow-b absolute bottom-10 right-10 size-64 rounded-full" />
 
-			<div className="relative z-10 flex h-full flex-col justify-between">
-				<div className={cn("space-y-3", compact ? "max-w-sm" : "max-w-md")}>
-					<p className="text-xs font-semibold tracking-[0.24em] text-muted-foreground uppercase">
-						{content.eyebrow}
-					</p>
-					<h2
-						className={cn(
-							"font-semibold tracking-tight text-foreground",
-							compact ? "text-xl" : "text-3xl xl:text-4xl",
-						)}
-					>
-						{content.title}
-					</h2>
-				</div>
+			<div
+				className={cn(
+					"relative z-10 flex h-full flex-col",
+					hasCopy ? "justify-between" : "items-center justify-center",
+				)}
+			>
+				{hasCopy ? (
+					<div className={cn("space-y-3", compact ? "max-w-sm" : "max-w-md")}>
+						{content.eyebrow ? (
+							<p className="text-xs font-semibold tracking-[0.24em] text-muted-foreground uppercase">
+								{content.eyebrow}
+							</p>
+						) : null}
+						{content.title ? (
+							<h2
+								className={cn(
+									"font-semibold tracking-tight text-foreground",
+									compact ? "text-xl" : "text-3xl xl:text-4xl",
+								)}
+							>
+								{content.title}
+							</h2>
+						) : null}
+					</div>
+				) : null}
 
 				<div
-					className={cn("relative", compact ? "mt-8 h-44" : "mt-12 h-[420px]")}
+					className={cn(
+						"relative w-full",
+						compact
+							? "mt-8 h-44"
+							: hasCopy
+								? "mt-8 h-[clamp(16rem,38vh,26rem)]"
+								: "mx-auto h-[clamp(20rem,52vh,34rem)] max-w-[36rem]",
+					)}
 				>
 					<svg
 						viewBox="0 0 680 520"
@@ -98,8 +119,8 @@ export function AuthVisualPanel({
 								x2="100%"
 								y2="100%"
 							>
-								<stop offset="0%" stopColor="rgba(15,160,128,0.95)" />
-								<stop offset="100%" stopColor="rgba(108,196,173,0.55)" />
+								<stop offset="0%" stopColor="var(--auth-visual-accent-start)" />
+								<stop offset="100%" stopColor="var(--auth-visual-accent-end)" />
 							</linearGradient>
 							<filter
 								id={`auth-blur-${variant}`}
@@ -113,13 +134,18 @@ export function AuthVisualPanel({
 						</defs>
 
 						<g className="auth-svg-float auth-svg-float-a">
-							<circle cx="128" cy="140" r="74" fill="rgba(15,160,128,0.08)" />
+							<circle
+								cx="128"
+								cy="140"
+								r="74"
+								fill="var(--auth-visual-orb-fill)"
+							/>
 							<circle
 								cx="128"
 								cy="140"
 								r="52"
 								fill="none"
-								stroke="rgba(15,160,128,0.38)"
+								stroke="var(--auth-visual-orb-stroke)"
 								strokeWidth="2"
 							/>
 						</g>
@@ -131,8 +157,8 @@ export function AuthVisualPanel({
 								width="228"
 								height="228"
 								rx="42"
-								fill="rgba(255,255,255,0.56)"
-								stroke="rgba(15,23,42,0.08)"
+								fill="var(--auth-visual-card-fill)"
+								stroke="var(--auth-visual-card-stroke)"
 							/>
 							<path
 								d="M302 246C340 170 378 150 438 170"
@@ -143,7 +169,7 @@ export function AuthVisualPanel({
 							/>
 							<path
 								d="M302 286C348 244 390 228 446 236"
-								stroke="rgba(15,23,42,0.14)"
+								stroke="var(--auth-visual-muted-stroke)"
 								strokeWidth="10"
 								strokeLinecap="round"
 								fill="none"
@@ -155,14 +181,14 @@ export function AuthVisualPanel({
 								cx="530"
 								cy="182"
 								r="72"
-								fill="rgba(255,255,255,0.46)"
-								stroke="rgba(15,160,128,0.2)"
+								fill="var(--auth-visual-card-fill)"
+								stroke="var(--auth-visual-orb-stroke)"
 							/>
 							<circle
 								cx="530"
 								cy="182"
 								r="20"
-								fill="rgba(15,160,128,0.18)"
+								fill="var(--auth-visual-orb-fill)"
 								filter={`url(#auth-blur-${variant})`}
 							/>
 						</g>
@@ -170,14 +196,14 @@ export function AuthVisualPanel({
 						<g className="auth-svg-float auth-svg-float-d">
 							<path
 								d="M120 378C198 336 258 344 338 396"
-								stroke="rgba(15,160,128,0.28)"
+								stroke="var(--auth-visual-curve-a)"
 								strokeWidth="3"
 								strokeLinecap="round"
 								fill="none"
 							/>
 							<path
 								d="M118 414C208 396 296 408 382 450"
-								stroke="rgba(15,23,42,0.08)"
+								stroke="var(--auth-visual-curve-b)"
 								strokeWidth="2"
 								strokeLinecap="round"
 								fill="none"

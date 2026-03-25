@@ -9,7 +9,10 @@ export type FleetViewportDefaults = {
 	selectedZoom: number
 	pitch: number
 	bearing: number
-	styleUrl: string
+	styleUrls: {
+		light: string
+		dark: string
+	}
 }
 
 export function getFleetViewportDefaults(): FleetViewportDefaults {
@@ -19,7 +22,7 @@ export function getFleetViewportDefaults(): FleetViewportDefaults {
 		selectedZoom: fleetMapDefaults.selectedZoom,
 		pitch: fleetMapDefaults.pitch,
 		bearing: fleetMapDefaults.bearing,
-		styleUrl: fleetMapDefaults.styleUrl,
+		styleUrls: fleetMapDefaults.styleUrls,
 	}
 }
 

@@ -59,6 +59,7 @@ import {
 } from "@/features/rentals/lib/ui-state"
 import { resolveErrorMessage } from "@/lib/errors"
 import { isPrivilegedFleetRole } from "@/lib/fleet/live"
+import { statusToneClassName } from "@/lib/theme-styles"
 import { RentalAppointmentDrawer } from "./rental-appointment-drawer"
 import { RentalHandoverDrawer } from "./rental-handover-drawer"
 import { RentalPaymentAuBecsForm } from "./rental-payment-au-becs-form"
@@ -108,19 +109,19 @@ function rentalStatusBadgeClass(
 ) {
 	switch (status) {
 		case "active":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "scheduled":
-			return "border-sky-200 bg-sky-50 text-sky-700"
+			return statusToneClassName("info")
 		case "cancelling":
-			return "border-orange-200 bg-orange-50 text-orange-700"
+			return statusToneClassName("warning")
 		case "awaiting_payment":
-			return "border-amber-200 bg-amber-50 text-amber-700"
+			return statusToneClassName("warning")
 		case "completed":
-			return "border-border bg-muted text-muted-foreground"
+			return statusToneClassName("muted")
 		case "cancelled":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 		case "draft":
-			return "border-border bg-background text-muted-foreground"
+			return statusToneClassName("neutral")
 	}
 }
 
@@ -129,13 +130,13 @@ function chargeStatusBadgeClass(
 ) {
 	switch (status) {
 		case "paid":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "partially_paid":
-			return "border-amber-200 bg-amber-50 text-amber-700"
+			return statusToneClassName("warning")
 		case "cancelled":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 		case "open":
-			return "border-border bg-background text-muted-foreground"
+			return statusToneClassName("neutral")
 	}
 }
 
@@ -151,16 +152,16 @@ function paymentStatusBadgeClass(
 ) {
 	switch (status) {
 		case "succeeded":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "processing":
 		case "pending":
-			return "border-sky-200 bg-sky-50 text-sky-700"
+			return statusToneClassName("info")
 		case "requires_action":
-			return "border-amber-200 bg-amber-50 text-amber-700"
+			return statusToneClassName("warning")
 		case "failed":
 		case "cancelled":
 		case "refunded":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 	}
 }
 

@@ -67,6 +67,7 @@ import {
 } from "@/features/vehicles"
 import { resolveErrorMessage } from "@/lib/errors"
 import { isPrivilegedFleetRole } from "@/lib/fleet/live"
+import { statusTextClassName } from "@/lib/theme-styles"
 
 type VehicleDetailsProps = {
 	vehicleId: string
@@ -331,12 +332,16 @@ function FeatureRow({
 			<div className="flex items-center gap-3">
 				<div className="flex items-center gap-1.5 text-sm">
 					{enabled ? (
-						<CircleCheck className="size-4 text-emerald-600" />
+						<CircleCheck
+							className={`size-4 ${statusTextClassName("success")}`}
+						/>
 					) : (
 						<CircleX className="size-4 text-muted-foreground" />
 					)}
 					<span
-						className={enabled ? "text-emerald-700" : "text-muted-foreground"}
+						className={
+							enabled ? statusTextClassName("success") : "text-muted-foreground"
+						}
 					>
 						{enabled ? "Enabled" : "Disabled"}
 					</span>

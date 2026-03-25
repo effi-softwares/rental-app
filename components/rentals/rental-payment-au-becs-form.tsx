@@ -6,6 +6,7 @@ import {
 	useElements,
 	useStripe,
 } from "@stripe/react-stripe-js"
+import { useTheme } from "next-themes"
 import { type FormEvent, useState } from "react"
 import { toast } from "sonner"
 
@@ -21,6 +22,7 @@ import {
 	getStripeBrowserPromise,
 	isStripeBrowserConfigured,
 } from "@/lib/stripe/client"
+import { feedbackMessageClassName } from "@/lib/theme-styles"
 
 type RentalPaymentAuBecsFormProps = {
 	rentalId: string
@@ -232,10 +234,12 @@ export function RentalPaymentAuBecsForm({
 	const authContextQuery = useAuthContextQuery()
 	const activeOrganizationId =
 		authContextQuery.data?.viewer.activeOrganizationId ?? undefined
+	const { resolvedTheme } = useTheme()
+	const stripeAppearanceTheme = resolvedTheme === "dark" ? "night" : "stripe"
 
 	if (!isStripeBrowserConfigured()) {
 		return (
-			<p className="rounded-md border border-amber-300/60 bg-amber-100/60 px-3 py-2 text-sm text-amber-900">
+			<p className={feedbackMessageClassName("warning")}>
 				Stripe publishable key is not configured for direct debit entry.
 			</p>
 		)
@@ -243,12 +247,12 @@ export function RentalPaymentAuBecsForm({
 
 	return (
 		<Elements
-			key={paymentSession.clientSecret}
+			key={`${paymentSession.clientSecret}-${stripeAppearanceTheme}`}
 			stripe={getStripeBrowserPromise()}
 			options={{
 				clientSecret: paymentSession.clientSecret,
 				appearance: {
-					theme: "stripe",
+					theme: stripeAppearanceTheme,
 				},
 			}}
 		>

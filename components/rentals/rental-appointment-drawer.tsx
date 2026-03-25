@@ -65,6 +65,12 @@ import { useVehicleCatalogQuery } from "@/features/vehicles"
 import type { VehicleSummary } from "@/features/vehicles/types/vehicle"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { resolveErrorMessage } from "@/lib/errors"
+import {
+	completedStepCardClassName,
+	completedStepIndicatorClassName,
+	statusTextClassName,
+	statusToneClassName,
+} from "@/lib/theme-styles"
 import { cn } from "@/lib/utils"
 import { RentalDateTimePicker } from "./rental-date-time-picker"
 import { RentalPaymentAuBecsForm } from "./rental-payment-au-becs-form"
@@ -405,19 +411,19 @@ function recurringBillingBadgeClass(
 ) {
 	switch (state) {
 		case "active_in_stripe":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "scheduled_in_stripe":
 		case "ready_to_schedule":
-			return "border-sky-200 bg-sky-50 text-sky-700"
+			return statusToneClassName("info")
 		case "pending_setup":
-			return "border-amber-200 bg-amber-50 text-amber-700"
+			return statusToneClassName("warning")
 		case "past_due":
 		case "failed":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 		case "cancelled":
-			return "border-border bg-muted text-muted-foreground"
+			return statusToneClassName("muted")
 		case "none":
-			return "border-border bg-background text-muted-foreground"
+			return statusToneClassName("neutral")
 	}
 }
 
@@ -483,11 +489,11 @@ function formatAvailabilityStatusColor(
 ) {
 	switch (status) {
 		case "available":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "partial":
-			return "border-amber-200 bg-amber-50 text-amber-700"
+			return statusToneClassName("warning")
 		case "blocked":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 	}
 }
 
@@ -585,7 +591,11 @@ function QuoteLineItems({
 					className="flex items-center justify-between gap-3 text-sm"
 				>
 					<p className="text-muted-foreground">{item.label}</p>
-					<p className={item.type === "discount" ? "text-emerald-700" : ""}>
+					<p
+						className={
+							item.type === "discount" ? statusTextClassName("success") : ""
+						}
+					>
 						{item.type === "discount" ? "-" : ""}
 						{formatCurrency(item.amount, currency)}
 					</p>
@@ -724,14 +734,14 @@ function StepCard({
 			className={cn(
 				"min-w-60 rounded-[26px] border px-4 py-4 transition md:min-w-0",
 				active && "border-primary bg-primary/8 shadow-sm",
-				completed && "border-emerald-300 bg-emerald-50",
+				completed && completedStepCardClassName,
 			)}
 		>
 			<div className="flex items-center gap-3">
 				<div
 					className={cn(
 						"flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
-						completed && "border-emerald-500 bg-emerald-500 text-white",
+						completed && completedStepIndicatorClassName,
 						active &&
 							!completed &&
 							"border-primary bg-primary text-primary-foreground",
@@ -1719,8 +1729,8 @@ export function RentalAppointmentDrawer({
 														className={cn(
 															"rounded-full px-3 py-1",
 															availabilityQuery.data.isAvailable
-																? "border-emerald-300 bg-emerald-50 text-emerald-700"
-																: "border-destructive/30 bg-destructive/10 text-destructive",
+																? statusToneClassName("success")
+																: statusToneClassName("danger"),
 														)}
 													>
 														{availabilityQuery.data.isAvailable

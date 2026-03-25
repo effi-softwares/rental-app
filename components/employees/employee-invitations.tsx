@@ -35,6 +35,7 @@ import { mainQueryKeys } from "@/features/main/queries/keys"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import { authClient } from "@/lib/auth-client"
 import { resolveErrorMessage } from "@/lib/errors"
+import { feedbackMessageClassName } from "@/lib/theme-styles"
 
 type InvitationRecord = {
 	id: string
@@ -309,7 +310,9 @@ export function EmployeeInvitations() {
 				}
 			/>
 
-			{message ? <p className="text-sm text-emerald-600">{message}</p> : null}
+			{message ? (
+				<p className={feedbackMessageClassName("success")}>{message}</p>
+			) : null}
 			{error ? <p className="text-destructive text-sm">{error}</p> : null}
 
 			<section className="space-y-2">

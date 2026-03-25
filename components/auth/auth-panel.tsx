@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 type AuthPanelProps = React.ComponentProps<"div">
 
 export function AuthPanel({ className, ...props }: AuthPanelProps) {
-	return <div className={cn("p-0 sm:p-0", className)} {...props} />
+	return <div className={cn(className)} {...props} />
 }
 
 type AuthInlineMessageProps = {

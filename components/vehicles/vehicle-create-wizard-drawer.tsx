@@ -50,6 +50,11 @@ import type {
 	VehicleRatePayload,
 	VehicleStatus,
 } from "@/features/vehicles"
+import {
+	completedStepCardClassName,
+	completedStepIndicatorClassName,
+	statusTextClassName,
+} from "@/lib/theme-styles"
 import { cn } from "@/lib/utils"
 
 type VehicleImageGroupKey = "frontImages" | "backImages" | "interiorImages"
@@ -191,14 +196,14 @@ function StepCard({
 			className={cn(
 				"min-w-[220px] rounded-[26px] border px-4 py-4 transition md:min-w-0",
 				active && "border-primary bg-primary/[0.08] shadow-sm",
-				completed && "border-emerald-300 bg-emerald-50",
+				completed && completedStepCardClassName,
 			)}
 		>
 			<div className="flex items-center gap-3">
 				<div
 					className={cn(
 						"flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
-						completed && "border-emerald-500 bg-emerald-500 text-white",
+						completed && completedStepIndicatorClassName,
 						active &&
 							!completed &&
 							"border-primary bg-primary text-primary-foreground",
@@ -399,7 +404,9 @@ function ImageProgressCard({
 							className={cn(
 								"rounded-2xl border px-4 py-3",
 								isActive && "border-primary/30 bg-primary/[0.06]",
-								complete && !isActive && "border-emerald-200 bg-emerald-50/70",
+								complete &&
+									!isActive &&
+									"border-emerald-500/25 bg-emerald-500/10",
 							)}
 						>
 							<div className="flex items-center justify-between gap-3">
@@ -415,7 +422,9 @@ function ImageProgressCard({
 									{uploadImagesPending && isActive ? (
 										<LoaderCircle className="text-primary size-4 animate-spin" />
 									) : complete ? (
-										<CheckCircle2 className="size-4 text-emerald-600" />
+										<CheckCircle2
+											className={cn("size-4", statusTextClassName("success"))}
+										/>
 									) : (
 										<Circle className="text-muted-foreground size-4" />
 									)}

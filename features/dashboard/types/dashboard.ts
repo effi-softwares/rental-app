@@ -67,7 +67,10 @@ export type DashboardFleetPreview = {
 		selectedZoom: number
 		pitch: number
 		bearing: number
-		styleUrl: string
+		styleUrls: {
+			light: string
+			dark: string
+		}
 	} | null
 	stats: {
 		moving: number

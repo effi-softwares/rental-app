@@ -47,6 +47,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { routes } from "@/config/routes"
 import { useDashboardOverviewQuery } from "@/features/dashboard"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
+import { statusToneClassName } from "@/lib/theme-styles"
 import { cn } from "@/lib/utils"
 
 const panelClassName =
@@ -134,9 +135,7 @@ function formatShortDate(value: string) {
 }
 
 function severityBadgeClassName(severity: "warning" | "critical") {
-	return severity === "critical"
-		? "border-destructive/20 bg-destructive/10 text-destructive"
-		: "border-amber-200 bg-amber-50 text-amber-700"
+	return statusToneClassName(severity === "critical" ? "danger" : "warning")
 }
 
 function agendaBadgeCopy(
@@ -236,7 +235,7 @@ function ActionDock() {
 
 	return (
 		<>
-			<div className="grid gap-3 border-t border-white/40 px-5 py-5 sm:grid-cols-2 xl:grid-cols-3">
+			<div className="grid gap-3 border-t border-border/70 px-5 py-5 sm:grid-cols-2 xl:grid-cols-3">
 				{actionItems.map((item) => {
 					if ("href" in item) {
 						return (
@@ -245,7 +244,7 @@ function ActionDock() {
 								asChild
 								variant="outline"
 								size="lg"
-								className="h-auto justify-start rounded-[14px] border-white/55 bg-white/82 px-4 py-4 text-left shadow-none backdrop-blur hover:bg-white"
+								className="h-auto justify-start rounded-[14px] border-border/70 bg-card/90 px-4 py-4 text-left shadow-none backdrop-blur hover:bg-accent hover:text-accent-foreground"
 							>
 								<Link href={item.href}>
 									<item.icon className="mt-0.5 size-4 shrink-0" />
@@ -266,7 +265,7 @@ function ActionDock() {
 							type="button"
 							variant="outline"
 							size="lg"
-							className="h-auto justify-start rounded-[14px] border-white/55 bg-white/82 px-4 py-4 text-left shadow-none backdrop-blur hover:bg-white"
+							className="h-auto justify-start rounded-[14px] border-border/70 bg-card/90 px-4 py-4 text-left shadow-none backdrop-blur hover:bg-accent hover:text-accent-foreground"
 							onClick={item.onClick}
 						>
 							<item.icon className="mt-0.5 size-4 shrink-0" />
@@ -300,11 +299,11 @@ function MetricStrip({
 	}>
 }) {
 	return (
-		<div className="grid gap-3 border-t border-white/40 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
+		<div className="grid gap-3 border-t border-border/70 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
 			{items.map((item) => (
 				<div
 					key={item.label}
-					className="rounded-[16px] border border-white/55 bg-white/72 px-4 py-4 backdrop-blur"
+					className="rounded-[16px] border border-border/70 bg-card/90 px-4 py-4 backdrop-blur"
 				>
 					<div className="flex items-center justify-between gap-3">
 						<div>
@@ -511,25 +510,25 @@ export function WorkspaceDashboard() {
 
 	return (
 		<PageContentShell className="max-w-none space-y-5 pb-8">
-			<section className="overflow-hidden rounded-[20px] border border-border/70 bg-background">
+			<section className="overflow-hidden rounded-[20px] border border-border/70 bg-card/95 shadow-sm">
 				<div className="flex flex-col gap-5 px-5 py-6 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-7">
 					<div className="max-w-3xl space-y-4">
 						<div className="flex flex-wrap items-center gap-2">
 							<Badge
 								variant="outline"
-								className="border-white/60 bg-white/75 text-foreground"
+								className="border-border/70 bg-muted/40 text-foreground"
 							>
 								Operations pulse
 							</Badge>
 							<Badge
 								variant="outline"
-								className="border-white/60 bg-white/70 text-muted-foreground"
+								className="border-border/70 bg-muted/35 text-muted-foreground"
 							>
 								{organizationName}
 							</Badge>
 							<Badge
 								variant="outline"
-								className="border-white/60 bg-white/70 text-muted-foreground capitalize"
+								className="border-border/70 bg-muted/35 text-muted-foreground capitalize"
 							>
 								{viewerRole}
 							</Badge>
@@ -547,13 +546,13 @@ export function WorkspaceDashboard() {
 						</div>
 
 						<div className="flex flex-wrap items-center gap-2 text-sm">
-							<div className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/75 px-3 py-1.5 text-foreground">
+							<div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/30 px-3 py-1.5 text-foreground">
 								<Siren className="size-4 text-primary" />
 								<span>
 									{dashboard.alerts.items.length} live alerts in focus
 								</span>
 							</div>
-							<div className="inline-flex items-center gap-2 rounded-full border border-white/55 bg-white/75 px-3 py-1.5 text-foreground">
+							<div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/30 px-3 py-1.5 text-foreground">
 								<Users className="size-4 text-primary" />
 								<span>
 									{visibleModules.join(" • ") || "Core workspace access"}
@@ -563,7 +562,7 @@ export function WorkspaceDashboard() {
 					</div>
 
 					<div className="grid gap-3 sm:min-w-[18rem]">
-						<div className="rounded-[16px] border border-white/55 bg-white/78 px-4 py-4 backdrop-blur">
+						<div className="rounded-[16px] border border-border/70 bg-muted/20 px-4 py-4 backdrop-blur">
 							<p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
 								Live workspace status
 							</p>
@@ -579,7 +578,7 @@ export function WorkspaceDashboard() {
 							</p>
 						</div>
 
-						<div className="rounded-[16px] border border-white/55 bg-white/78 px-4 py-4 backdrop-blur">
+						<div className="rounded-[16px] border border-border/70 bg-muted/20 px-4 py-4 backdrop-blur">
 							<div className="flex items-center justify-between gap-3">
 								<div>
 									<p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -903,8 +902,8 @@ export function WorkspaceDashboard() {
 												className={cn(
 													"mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[12px]",
 													item.severity === "critical"
-														? "bg-destructive/10 text-destructive"
-														: "bg-amber-100 text-amber-700",
+														? statusToneClassName("danger")
+														: statusToneClassName("warning"),
 												)}
 											>
 												{item.severity === "critical" ? (
@@ -990,8 +989,8 @@ export function WorkspaceDashboard() {
 													className={cn(
 														"mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[12px]",
 														item.kind === "registration"
-															? "bg-sky-100 text-sky-700"
-															: "bg-emerald-100 text-emerald-700",
+															? statusToneClassName("info")
+															: statusToneClassName("success"),
 													)}
 												>
 													<ShieldAlert className="size-4" />

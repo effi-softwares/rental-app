@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 
-import { AuthBrand } from "@/components/auth/auth-brand"
 import {
 	AuthVisualPanel,
 	type AuthVisualVariant,
@@ -8,7 +7,6 @@ import {
 import { cn } from "@/lib/utils"
 
 type AuthPageShellProps = {
-	eyebrow?: string
 	title: string
 	description: string
 	children: ReactNode
@@ -19,7 +17,6 @@ type AuthPageShellProps = {
 }
 
 export function AuthPageShell({
-	eyebrow,
 	title,
 	description,
 	children,
@@ -36,31 +33,30 @@ export function AuthPageShell({
 				: "max-w-xl lg:max-w-3xl"
 
 	return (
-		<main className="auth-shell-background min-h-screen">
-			<div className="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
-				<div className="mx-auto max-w-7xl p-12 grid w-full items-center gap-8 grid-cols-1 lg:grid-cols-2 lg:gap-18 xl:gap-24">
+		<main className="auth-shell-background h-dvh overflow-hidden">
+			<div className="flex h-full items-center justify-center px-4 py-4 sm:px-6 lg:px-8">
+				<div className="mx-auto grid h-full max-h-full w-full max-w-7xl grid-cols-1 items-center gap-6 p-4 sm:p-6 lg:grid-cols-2 lg:gap-12 lg:p-8 xl:gap-18 xl:p-10">
 					<section
-						className={cn("flex justify-center lg:justify-start", className)}
+						className={cn(
+							"flex min-h-0 justify-center lg:justify-start",
+							className,
+						)}
 					>
 						<div
-							className={cn("w-full", contentWidthClassName, contentClassName)}
+							className={cn(
+								"flex w-full min-h-0 flex-col justify-center lg:max-h-full",
+								contentWidthClassName,
+								contentClassName,
+							)}
 						>
-							<div className="space-y-5">
-								<AuthBrand />
+							<div className="space-y-4 lg:space-y-5">
 								<div className="space-y-3">
-									{eyebrow ? (
-										<div className="hidden w-fit rounded-full border border-border/70 bg-muted/45 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase sm:inline-flex">
-											{eyebrow}
-										</div>
-									) : null}
-									<div className="space-y-3">
-										<h1 className="max-w-xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-											{title}
-										</h1>
-										<p className="hidden max-w-xl text-sm leading-7 text-muted-foreground sm:block sm:text-base">
-											{description}
-										</p>
-									</div>
+									<h1 className="max-w-xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+										{title}
+									</h1>
+									<p className="hidden max-w-xl text-sm leading-7 text-muted-foreground sm:block sm:text-base">
+										{description}
+									</p>
 								</div>
 
 								{children}
@@ -68,7 +64,7 @@ export function AuthPageShell({
 						</div>
 					</section>
 
-					<aside className="relative hidden lg:block">
+					<aside className="relative hidden h-full min-h-0 lg:block">
 						<AuthVisualPanel variant={visualVariant} />
 					</aside>
 				</div>

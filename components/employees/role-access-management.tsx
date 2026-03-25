@@ -33,6 +33,7 @@ import {
 	resolvePermissionKeysFromStatements,
 } from "@/lib/authorization/policies"
 import { resolveErrorMessage } from "@/lib/errors"
+import { feedbackMessageClassName } from "@/lib/theme-styles"
 
 type OrganizationRoleRecord = {
 	id?: string
@@ -426,7 +427,9 @@ export function RoleAccessManagement() {
 				}
 			/>
 
-			{message ? <p className="text-sm text-emerald-600">{message}</p> : null}
+			{message ? (
+				<p className={feedbackMessageClassName("success")}>{message}</p>
+			) : null}
 			{error ? <p className="text-destructive text-sm">{error}</p> : null}
 
 			<section className="space-y-2">

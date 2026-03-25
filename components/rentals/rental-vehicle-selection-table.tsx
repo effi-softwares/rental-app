@@ -17,6 +17,7 @@ import {
 	type WheelPickerOption,
 } from "@/components/ui/wheel-picker"
 import type { VehicleSummary } from "@/features/vehicles"
+import { statusToneClassName } from "@/lib/theme-styles"
 
 type RentalVehicleSelectionTableProps = {
 	vehicles: VehicleSummary[]
@@ -329,7 +330,7 @@ export function RentalVehicleSelectionTable({
 										<span
 											className={`rounded-full px-3 py-1 text-xs font-medium backdrop-blur ${
 												vehicle.status === "Available"
-													? "bg-emerald-500/90 text-white"
+													? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
 													: "bg-background/90 text-foreground"
 											}`}
 										>
@@ -380,12 +381,16 @@ export function RentalVehicleSelectionTable({
 
 									<div className="flex flex-wrap gap-2">
 										{vehicle.primaryRate?.requiresDeposit ? (
-											<span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900">
+											<span
+												className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${statusToneClassName("warning")}`}
+											>
 												<ShieldCheck className="size-3.5" />
 												Deposit required
 											</span>
 										) : (
-											<span className="inline-flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-900">
+											<span
+												className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${statusToneClassName("info")}`}
+											>
 												<Sparkles className="size-3.5" />
 												Quick checkout
 											</span>

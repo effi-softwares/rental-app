@@ -43,6 +43,11 @@ import {
 	useSaveRentalInspectionMutation,
 } from "@/features/rentals"
 import { resolveErrorMessage } from "@/lib/errors"
+import {
+	completedStepCardClassName,
+	completedStepIndicatorClassName,
+	statusToneClassName,
+} from "@/lib/theme-styles"
 import { cn } from "@/lib/utils"
 
 type RentalHandoverDrawerProps = {
@@ -143,7 +148,7 @@ function StepCard(props: {
 		<div
 			className={cn(
 				"min-w-52 rounded-[24px] border px-4 py-3 transition-colors md:min-w-0",
-				props.completed && "border-emerald-300 bg-emerald-50 text-emerald-950",
+				props.completed && completedStepCardClassName,
 				props.active && "border-primary bg-primary/8 text-foreground shadow-sm",
 				!props.active && !props.completed && "bg-background",
 			)}
@@ -152,8 +157,7 @@ function StepCard(props: {
 				<div
 					className={cn(
 						"mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-						props.completed &&
-							"border-emerald-400 bg-emerald-100 text-emerald-800",
+						props.completed && completedStepIndicatorClassName,
 						props.active && "border-primary bg-primary/10 text-primary",
 						!props.active &&
 							!props.completed &&
@@ -594,12 +598,10 @@ export function RentalHandoverDrawer({
 							)}
 
 							{readinessBlockers.length > 0 ? (
-								<Card className="border-amber-300/50 bg-amber-50">
+								<Card className={statusToneClassName("warning")}>
 									<CardHeader>
-										<CardTitle className="text-amber-950">
-											What still needs attention
-										</CardTitle>
-										<CardDescription className="text-amber-900/80">
+										<CardTitle>What still needs attention</CardTitle>
+										<CardDescription className="text-current/80">
 											Resolve these items before the final handover action.
 										</CardDescription>
 									</CardHeader>
@@ -607,7 +609,7 @@ export function RentalHandoverDrawer({
 										{readinessBlockers.map((message) => (
 											<div
 												key={message}
-												className="flex gap-3 rounded-2xl border border-amber-300/60 bg-background/80 p-4 text-amber-950"
+												className="flex gap-3 rounded-2xl border border-current/20 bg-background/80 p-4 text-current"
 											>
 												<AlertCircle className="mt-0.5 size-4 shrink-0" />
 												<p className="text-sm">{message}</p>

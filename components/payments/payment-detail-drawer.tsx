@@ -21,6 +21,7 @@ import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import { usePaymentDetailQuery } from "@/features/payments"
 import { resolveErrorMessage } from "@/lib/errors"
+import { statusToneClassName } from "@/lib/theme-styles"
 
 type PaymentDetailDrawerProps = {
 	paymentId: string | null
@@ -55,31 +56,31 @@ function formatDateTime(value: string | null) {
 function paymentStatusBadgeClass(status: string) {
 	switch (status) {
 		case "succeeded":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "processing":
 		case "pending":
-			return "border-sky-200 bg-sky-50 text-sky-700"
+			return statusToneClassName("info")
 		case "requires_action":
-			return "border-amber-200 bg-amber-50 text-amber-700"
+			return statusToneClassName("warning")
 		case "failed":
 		case "cancelled":
 		case "refunded":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 		default:
-			return "border-border bg-background text-muted-foreground"
+			return statusToneClassName("neutral")
 	}
 }
 
 function webhookStatusBadgeClass(status: string) {
 	switch (status) {
 		case "processed":
-			return "border-emerald-200 bg-emerald-50 text-emerald-700"
+			return statusToneClassName("success")
 		case "failed":
-			return "border-destructive/30 bg-destructive/10 text-destructive"
+			return statusToneClassName("danger")
 		case "ignored":
-			return "border-border bg-muted text-muted-foreground"
+			return statusToneClassName("muted")
 		default:
-			return "border-sky-200 bg-sky-50 text-sky-700"
+			return statusToneClassName("info")
 	}
 }
 

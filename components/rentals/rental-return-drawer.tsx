@@ -59,6 +59,11 @@ import {
 	useUpdateRentalChargeMutation,
 } from "@/features/rentals"
 import { resolveErrorMessage } from "@/lib/errors"
+import {
+	completedStepCardClassName,
+	completedStepIndicatorClassName,
+	statusToneClassName,
+} from "@/lib/theme-styles"
 import { cn } from "@/lib/utils"
 import { RentalPaymentAuBecsForm } from "./rental-payment-au-becs-form"
 import { RentalPaymentTerminalPanel } from "./rental-payment-terminal-panel"
@@ -341,14 +346,14 @@ function StepCard({
 			className={cn(
 				"min-w-55 rounded-[24px] border px-4 py-4 transition md:min-w-0",
 				active && "border-primary bg-primary/8 shadow-sm",
-				completed && "border-emerald-300 bg-emerald-50",
+				completed && completedStepCardClassName,
 			)}
 		>
 			<div className="flex items-center gap-3">
 				<div
 					className={cn(
 						"flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
-						completed && "border-emerald-500 bg-emerald-500 text-white",
+						completed && completedStepIndicatorClassName,
 						active &&
 							!completed &&
 							"border-primary bg-primary text-primary-foreground",
@@ -2220,14 +2225,22 @@ export function RentalReturnDrawer({
 							</CardHeader>
 							<CardContent className="space-y-3">
 								{blockers.length === 0 ? (
-									<div className="rounded-2xl border bg-emerald-50 p-4 text-emerald-800">
+									<div
+										className={cn(
+											"rounded-2xl border p-4",
+											statusToneClassName("success"),
+										)}
+									>
 										Everything needed for return completion is ready.
 									</div>
 								) : (
 									blockers.map((message) => (
 										<div
 											key={message}
-											className="flex gap-3 rounded-2xl border border-amber-300/50 bg-amber-50 p-4 text-amber-950"
+											className={cn(
+												"flex gap-3 rounded-2xl border p-4",
+												statusToneClassName("warning"),
+											)}
 										>
 											<AlertCircle className="mt-0.5 size-4 shrink-0" />
 											<p className="text-sm">{message}</p>

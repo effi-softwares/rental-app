@@ -35,6 +35,7 @@ import { organizationsQueryKeys } from "@/features/organizations/queries/keys"
 import { organizationSettingsFormSchema } from "@/features/organizations/schemas/settings-form"
 import { authClient } from "@/lib/auth-client"
 import { resolveErrorMessage } from "@/lib/errors"
+import { feedbackMessageClassName } from "@/lib/theme-styles"
 
 type CurrentOrganizationResponse = {
 	organization: {
@@ -338,7 +339,9 @@ export function OrganizationSettingsPanel() {
 
 		return (
 			<div className="space-y-2">
-				{message ? <p className="text-sm text-emerald-600">{message}</p> : null}
+				{message ? (
+					<p className={feedbackMessageClassName("success")}>{message}</p>
+				) : null}
 				{error ? <p className="text-destructive text-sm">{error}</p> : null}
 			</div>
 		)

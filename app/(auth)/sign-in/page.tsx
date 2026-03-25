@@ -33,7 +33,6 @@ export default async function SignInPage() {
 
 	return (
 		<AuthPageShell
-			eyebrow="Secure sign in"
 			title="Welcome back"
 			description="Sign in to manage rentals, teams, customers, and gallery operations."
 			visualVariant="sign-in"
