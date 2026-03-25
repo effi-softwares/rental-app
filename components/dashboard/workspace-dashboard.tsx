@@ -46,7 +46,6 @@ import { PageContentShell } from "@/components/ui/page-content-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { routes } from "@/config/routes"
 import { useDashboardOverviewQuery } from "@/features/dashboard"
-import { useHaptics } from "@/features/haptics/client"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import { cn } from "@/lib/utils"
 
@@ -384,7 +383,6 @@ function LoadingDashboard() {
 
 export function WorkspaceDashboard() {
 	const authContextQuery = useAuthContextQuery()
-	const { trigger } = useHaptics()
 	const workspaceLive = useWorkspaceLiveStatus()
 	const organizationId =
 		authContextQuery.data?.viewer.activeOrganizationId ?? undefined
@@ -546,9 +544,6 @@ export function WorkspaceDashboard() {
 								readiness, and branch-level coordination without exposing
 								revenue metrics.
 							</p>
-							<Button type="button" onClick={() => trigger("medium")}>
-								Test haptics
-							</Button>
 						</div>
 
 						<div className="flex flex-wrap items-center gap-2 text-sm">
