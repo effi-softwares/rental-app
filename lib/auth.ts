@@ -93,6 +93,12 @@ export const auth = betterAuth({
 				defaultValue: false,
 				input: false,
 			},
+			hapticsEnabled: {
+				type: "boolean",
+				required: false,
+				defaultValue: true,
+				input: false,
+			},
 			activeOrganizationId: {
 				type: "string",
 				required: false,

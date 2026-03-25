@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "haptics_enabled" boolean DEFAULT true;

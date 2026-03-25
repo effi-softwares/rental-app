@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { routes } from "@/config/routes"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { member, organization } from "@/lib/db/schema/auth"
+import { member, organization, user } from "@/lib/db/schema/auth"
 import { memberBranchAccess } from "@/lib/db/schema/branches"
 import type { Context } from "@/types"
 import {
@@ -62,6 +62,9 @@ export type ResolvedAuthContext = {
 		emailVerified: boolean
 		twoFactorEnabled: boolean
 		role: string | null
+		preferences: {
+			hapticsEnabled: boolean
+		}
 	} | null
 	viewer: Context
 	accessibleOrganizations: AccessibleOrganization[]
@@ -147,12 +150,28 @@ export async function resolveAuthContext(): Promise<ResolvedAuthContext | null> 
 		return null
 	}
 
-	const [accessibleOrganizations, userActiveOrganizationId] = await Promise.all(
-		[
+	const [accessibleOrganizations, userActiveOrganizationId, currentUser] =
+		await Promise.all([
 			getAccessibleOrganizationsForUser(userId),
 			getUserActiveOrganizationId(userId),
-		],
-	)
+			db
+				.select({
+					id: user.id,
+					name: user.name,
+					email: user.email,
+					emailVerified: user.emailVerified,
+					twoFactorEnabled: user.twoFactorEnabled,
+					role: user.role,
+					hapticsEnabled: user.hapticsEnabled,
+				})
+				.from(user)
+				.where(eq(user.id, userId))
+				.limit(1)
+				.then((rows) => rows[0] ?? null),
+		])
+	if (!currentUser) {
+		return null
+	}
 	const sessionActiveOrganizationId =
 		currentSession?.session?.activeOrganizationId ?? null
 	const reconciled = await reconcileCanonicalActiveOrganizationForUser({
@@ -195,16 +214,17 @@ export async function resolveAuthContext(): Promise<ResolvedAuthContext | null> 
 			hasSession: true,
 			activeOrganizationId: reconciled.activeOrganizationId,
 		},
-		user: currentSession?.user
-			? {
-					id: currentSession.user.id ?? null,
-					name: currentSession.user.name ?? null,
-					email: currentSession.user.email ?? null,
-					emailVerified: Boolean(currentSession.user.emailVerified),
-					twoFactorEnabled: Boolean(currentSession.user.twoFactorEnabled),
-					role: currentSession.user.role ?? null,
-				}
-			: null,
+		user: {
+			id: currentUser.id,
+			name: currentUser.name,
+			email: currentUser.email,
+			emailVerified: currentUser.emailVerified,
+			twoFactorEnabled: currentUser.twoFactorEnabled ?? false,
+			role: currentUser.role,
+			preferences: {
+				hapticsEnabled: currentUser.hapticsEnabled ?? true,
+			},
+		},
 		viewer,
 		accessibleOrganizations,
 		activeOrganization,

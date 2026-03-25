@@ -13,6 +13,9 @@ export type AuthContextResponse = {
 		emailVerified: boolean
 		twoFactorEnabled: boolean
 		role: string | null
+		preferences: {
+			hapticsEnabled: boolean
+		}
 	} | null
 	viewer: Context
 	accessibleOrganizations: Array<{

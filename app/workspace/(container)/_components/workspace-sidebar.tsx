@@ -1,12 +1,13 @@
 "use client"
 
-import { LayoutGrid } from "lucide-react"
+import { LayoutGrid, Vibrate, VibrateOff } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useMemo } from "react"
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
 	Sidebar,
 	SidebarContent,
@@ -22,7 +23,9 @@ import {
 } from "@/components/ui/sidebar"
 import { isPlatformSignupEnabled } from "@/config/feature-flags"
 import { routes } from "@/config/routes"
+import { useHaptics } from "@/features/haptics/client"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
+import { cn } from "@/lib/utils"
 import { OrganizationSwitcher } from "./organization-switcher"
 import { useWorkspaceLiveStatus } from "./workspace-live-provider"
 import {
@@ -35,6 +38,7 @@ import {
 export function WorkspaceSidebar() {
 	const pathname = usePathname()
 	const authContextQuery = useAuthContextQuery()
+	const { isEnabled, toggleEnabled } = useHaptics()
 	const liveStatus = useWorkspaceLiveStatus()
 
 	const viewerRole = authContextQuery.data?.viewer.role ?? "member"
@@ -47,6 +51,7 @@ export function WorkspaceSidebar() {
 	const groupedNavigation = useMemo(() => {
 		return getGroupedWorkspaceNavigation(visibleNavigation)
 	}, [visibleNavigation])
+	const hapticsLabel = isEnabled ? "Disable haptics" : "Enable haptics"
 
 	function renderLink(item: WorkspaceNavItem) {
 		const LinkIcon = item.icon
@@ -107,8 +112,26 @@ export function WorkspaceSidebar() {
 				))}
 			</SidebarContent>
 			<SidebarFooter>
-				<div className="p-2 w-full flex items-center gap-2 border-t ">
-					<AnimatedThemeToggler className="ml-auto" />
+				<div className="flex w-full items-center justify-end gap-2 border-t p-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="icon-sm"
+						className={cn(
+							"border-sidebar-border/70 bg-sidebar hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:bg-sidebar-accent/60",
+						)}
+						aria-label={hapticsLabel}
+						title={hapticsLabel}
+						onClick={toggleEnabled}
+					>
+						{isEnabled ? (
+							<Vibrate className="size-4" />
+						) : (
+							<VibrateOff className="size-4" />
+						)}
+						<span className="sr-only">{hapticsLabel}</span>
+					</Button>
+					<AnimatedThemeToggler />
 				</div>
 			</SidebarFooter>
 			<SidebarRail />

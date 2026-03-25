@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 
 import { buttonVariants } from "@/components/ui/button"
+import { useHaptics } from "@/features/haptics/client"
 import { cn } from "@/lib/utils"
 
 type ViewTransition = {
@@ -46,6 +47,7 @@ export function AnimatedThemeToggler({
 	...props
 }: AnimatedThemeTogglerProps) {
 	const { resolvedTheme, setTheme } = useTheme()
+	const { trigger } = useHaptics()
 	const buttonRef = useRef<HTMLButtonElement>(null)
 	const [mounted, setMounted] = useState(false)
 
@@ -58,6 +60,8 @@ export function AnimatedThemeToggler({
 		if (!button) {
 			return
 		}
+
+		void trigger("medium")
 
 		const isDark = resolvedTheme === "dark"
 		const nextTheme = isDark ? "light" : "dark"
@@ -104,7 +108,7 @@ export function AnimatedThemeToggler({
 				},
 			)
 		})
-	}, [duration, resolvedTheme, setTheme])
+	}, [duration, resolvedTheme, setTheme, trigger])
 
 	const isDark = mounted && resolvedTheme === "dark"
 	const label = isDark ? "Switch to light theme" : "Switch to dark theme"

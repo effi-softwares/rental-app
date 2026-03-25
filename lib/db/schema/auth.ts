@@ -27,6 +27,7 @@ export const user = pgTable("user", {
 	banExpires: timestamp("ban_expires"),
 	twoFactorEnabled: boolean("two_factor_enabled").default(false),
 	requiresPasswordSetup: boolean("requires_password_setup").default(false),
+	hapticsEnabled: boolean("haptics_enabled").default(true),
 	activeOrganizationId: uuid("active_organization_id").references(
 		() => organization.id,
 		{ onDelete: "set null" },
