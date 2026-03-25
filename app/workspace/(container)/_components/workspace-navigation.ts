@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react"
 import {
-	Building2,
 	CalendarCheck2,
 	CarFront,
 	CreditCard,
@@ -8,7 +7,6 @@ import {
 	LayoutDashboard,
 	MapPinned,
 	Settings,
-	User,
 	Users,
 	Users2,
 } from "lucide-react"
@@ -47,13 +45,6 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
 		group: "workspace",
 		permission: "viewDashboardModule",
 		icon: LayoutDashboard,
-	},
-	{
-		href: routes.app.profile,
-		label: "Profile",
-		group: "workspace",
-		permission: "viewDashboardModule",
-		icon: User,
 	},
 	{
 		href: routes.app.vehicleCatalog,
@@ -98,13 +89,14 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
 		permission: "viewGalleryModule",
 		icon: Images,
 	},
-	{
-		href: routes.app.branches,
-		label: "Branches",
-		group: "operations",
-		permission: "viewBranchModule",
-		icon: Building2,
-	},
+	// No need this for initial release
+	// {
+	// 	href: routes.app.branches,
+	// 	label: "Branches",
+	// 	group: "operations",
+	// 	permission: "viewBranchModule",
+	// 	icon: Building2,
+	// },
 	{
 		href: routes.app.customers,
 		label: "Customers",
@@ -114,21 +106,21 @@ export const workspaceNavigation: WorkspaceNavItem[] = [
 	},
 	{
 		href: routes.app.employees,
-		label: "Employee Management",
-		group: "operations",
+		label: "Employees",
+		group: "administration",
 		permission: "viewEmployeesModule",
 		icon: Users,
 	},
 	{
-		href: routes.app.settings,
-		label: "Organization Settings",
+		href: routes.app.employeeRoles,
+		label: "Role & Access",
 		group: "administration",
 		permission: "manageOrganizationSettings",
 		icon: Settings,
 	},
 	{
-		href: routes.app.employeeRoles,
-		label: "Role & Access",
+		href: routes.app.settings,
+		label: "Organization Settings",
 		group: "administration",
 		permission: "manageOrganizationSettings",
 		icon: Settings,

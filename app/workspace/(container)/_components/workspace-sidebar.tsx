@@ -111,7 +111,6 @@ export function WorkspaceSidebar() {
 					<AnimatedThemeToggler className="ml-auto" />
 				</div>
 			</SidebarFooter>
-
 			<SidebarRail />
 		</Sidebar>
 	)
