@@ -21,6 +21,7 @@ import {
 } from "@/components/customers/customer-edit-dialog"
 import { CustomerTable } from "@/components/customers/customer-table"
 import { ResponsiveConfirmDialog } from "@/components/customers/responsive-confirm-dialog"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
 	InputGroup,
@@ -413,6 +414,9 @@ function CustomerManagementContent() {
 	const listPage = listQuery.data?.page.page ?? page
 	const pageCount = listQuery.data?.page.pageCount ?? 1
 	const total = listQuery.data?.page.total ?? 0
+	const hasActiveFilters = Boolean(
+		search || verificationStatus || status !== "all" || pageSize !== 25,
+	)
 	const verificationFilterOptions = useMemo<WheelFilterOption[]>(
 		() => [
 			{ value: "__all__", label: "All verification" },
@@ -490,7 +494,7 @@ function CustomerManagementContent() {
 						<Separator />
 					</div>
 
-					<div className="grid gap-3 rounded-2xl p-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
+					<div className="grid gap-3 rounded-2xl p-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))_auto]">
 						<CustomerSearchInput
 							key={search}
 							initialValue={search}
@@ -561,6 +565,25 @@ function CustomerManagementContent() {
 								})
 							}
 						/>
+
+						{hasActiveFilters ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="h-12"
+								onClick={() =>
+									updateUrl((params) => {
+										params.delete("search")
+										params.delete("verificationStatus")
+										params.delete("status")
+										params.delete("pageSize")
+										params.delete("page")
+									})
+								}
+							>
+								Reset filters
+							</Button>
+						) : null}
 					</div>
 
 					<CustomerTable
