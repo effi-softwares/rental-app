@@ -15,6 +15,13 @@
 			"when": 1773857178127,
 			"tag": "0001_simple_smiling_tiger",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1774453070865,
+			"tag": "0002_conscious_warpath",
+			"breakpoints": true
 		}
 	]
 }

@@ -1,11 +1,6 @@
 import { z } from "zod"
 
-export const CUSTOMER_VERIFICATION_STATUSES = [
-	"pending",
-	"in_review",
-	"verified",
-	"rejected",
-] as const
+import { CUSTOMER_VERIFICATION_STATUSES } from "@/features/customers/constants"
 
 export const createCustomerFormSchema = z.object({
 	fullName: z.string().trim().min(1, "Customer full name is required."),

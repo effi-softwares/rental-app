@@ -27,6 +27,8 @@ export const customer = pgTable(
 		phone: text("phone"),
 		phoneNormalized: text("phone_normalized"),
 		stripeCustomerId: text("stripe_customer_id"),
+		status: text("status").default("active").notNull(),
+		bannedAt: timestamp("banned_at", { withTimezone: true }),
 		verificationStatus: text("verification_status")
 			.default("pending")
 			.notNull(),
@@ -46,6 +48,7 @@ export const customer = pgTable(
 		index("customer_email_normalized_idx").on(table.emailNormalized),
 		index("customer_phone_normalized_idx").on(table.phoneNormalized),
 		index("customer_stripe_customer_id_idx").on(table.stripeCustomerId),
+		index("customer_status_idx").on(table.status),
 		index("customer_verification_status_idx").on(table.verificationStatus),
 	],
 )

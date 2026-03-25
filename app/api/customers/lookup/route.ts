@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 	)
 
 	if (!hasCustomerLookupInput({ email, phone })) {
-		return NextResponse.json({ matches: [] })
+		return NextResponse.json({ customers: [] })
 	}
 
 	const predicates = [
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 	].filter(Boolean)
 
 	if (predicates.length === 0) {
-		return NextResponse.json({ matches: [] })
+		return NextResponse.json({ customers: [] })
 	}
 
 	const rows = await db
@@ -51,6 +51,7 @@ export async function GET(request: Request) {
 		.where(
 			and(
 				eq(customer.organizationId, guard.viewer.activeOrganizationId),
+				eq(customer.status, "active"),
 				predicates.length === 1 ? predicates[0] : or(...predicates),
 			),
 		)

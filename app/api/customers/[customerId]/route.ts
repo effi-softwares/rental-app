@@ -1,21 +1,64 @@
-import { and, eq, inArray } from "drizzle-orm"
+import { and, count, eq, inArray, isNull } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
+import { CUSTOMER_VERIFICATION_STATUSES } from "@/features/customers/constants"
 import {
 	normalizeCustomerEmail,
 	normalizeCustomerPhone,
 } from "@/features/customers/lib/normalize"
-import { forbiddenError, jsonError } from "@/lib/api/errors"
+import type { CustomerDetailResponse } from "@/features/customers/types"
+import { jsonError } from "@/lib/api/errors"
 import { requireViewer } from "@/lib/api/guards"
-import { getScopedBranchIdsForViewer } from "@/lib/authorization/server"
 import { db } from "@/lib/db"
-import { branch } from "@/lib/db/schema/branches"
 import { customer } from "@/lib/db/schema/customers"
+import { mediaAsset, mediaLink } from "@/lib/db/schema/media"
+import { rental } from "@/lib/db/schema/rentals"
+import { getMediaStorageBucketFromMetadata } from "@/lib/media/storage-bucket"
+import type { StorageVisibility } from "@/lib/storage"
+import { getStorageAdapter } from "@/lib/storage"
+import {
+	normalizeCustomerDetail,
+	resolveAssignableBranch,
+	resolveVisibleCustomer,
+} from "../_lib"
 
 type RouteProps = {
 	params: Promise<{
 		customerId: string
 	}>
+}
+
+export async function GET(_: Request, { params }: RouteProps) {
+	const guard = await requireViewer({ permission: "viewCustomerModule" })
+
+	if (guard.response) {
+		return guard.response
+	}
+
+	const { customerId } = await params
+	const target = await resolveVisibleCustomer({
+		viewer: guard.viewer,
+		customerId,
+	})
+
+	if (target.response) {
+		return target.response
+	}
+
+	const rentalHistoryRows = await db
+		.select({ value: count() })
+		.from(rental)
+		.where(
+			and(
+				eq(rental.organizationId, guard.viewer.activeOrganizationId),
+				eq(rental.customerId, customerId),
+			),
+		)
+
+	return NextResponse.json({
+		customer: normalizeCustomerDetail(target.customer),
+		hasRentalHistory: Number(rentalHistoryRows[0]?.value ?? 0) > 0,
+	} satisfies CustomerDetailResponse)
 }
 
 export async function PATCH(request: Request, { params }: RouteProps) {
@@ -25,104 +68,83 @@ export async function PATCH(request: Request, { params }: RouteProps) {
 		return guard.response
 	}
 
-	const viewer = guard.viewer
-
 	const { customerId } = await params
-	const organizationId = viewer.activeOrganizationId
-	const scopedBranchIds = await getScopedBranchIdsForViewer(viewer)
+	const target = await resolveVisibleCustomer({
+		viewer: guard.viewer,
+		customerId,
+	})
 
-	const customerRows = await db
-		.select({
-			id: customer.id,
-			branchId: customer.branchId,
-		})
-		.from(customer)
-		.where(
-			and(
-				eq(customer.id, customerId),
-				eq(customer.organizationId, organizationId),
-			),
-		)
-		.limit(1)
-
-	const targetCustomer = customerRows[0]
-	if (!targetCustomer) {
-		return jsonError("Customer not found.", 404)
+	if (target.response) {
+		return target.response
 	}
 
-	if (scopedBranchIds !== null) {
-		if (
-			!targetCustomer.branchId ||
-			!scopedBranchIds.includes(targetCustomer.branchId)
-		) {
-			return forbiddenError()
-		}
-	}
-
-	const payload = (await request.json()) as {
+	const payload = (await request.json().catch(() => null)) as {
 		fullName?: string
 		email?: string | null
 		phone?: string | null
 		branchId?: string | null
 		verificationStatus?: string
 		verificationMetadata?: Record<string, unknown>
-	}
+	} | null
 
 	const updates: Partial<typeof customer.$inferInsert> = {
 		updatedAt: new Date(),
 	}
 
-	if (typeof payload.fullName === "string") {
-		updates.fullName = payload.fullName.trim()
+	if (typeof payload?.fullName === "string") {
+		const fullName = payload.fullName.trim()
+		if (!fullName) {
+			return jsonError("Customer full name is required.", 400)
+		}
+		updates.fullName = fullName
 	}
 
-	if (payload.email !== undefined) {
+	if (payload?.email !== undefined) {
 		updates.email = payload.email?.trim() || null
 		updates.emailNormalized = normalizeCustomerEmail(payload.email)
 	}
 
-	if (payload.phone !== undefined) {
+	if (payload?.phone !== undefined) {
 		updates.phone = payload.phone?.trim() || null
 		updates.phoneNormalized = normalizeCustomerPhone(payload.phone)
 	}
 
-	if (payload.branchId !== undefined) {
-		const nextBranchId = payload.branchId?.trim() || null
+	if (payload?.branchId !== undefined) {
+		const branchId = payload.branchId?.trim() || null
+		const branchResult = await resolveAssignableBranch({
+			viewer: guard.viewer,
+			branchId,
+		})
 
-		if (nextBranchId) {
-			const validBranchRows = await db
-				.select({ id: branch.id })
-				.from(branch)
-				.where(
-					scopedBranchIds === null
-						? and(
-								eq(branch.organizationId, organizationId),
-								eq(branch.id, nextBranchId),
-							)
-						: and(
-								eq(branch.organizationId, organizationId),
-								eq(branch.id, nextBranchId),
-								inArray(branch.id, scopedBranchIds),
-							),
-				)
-				.limit(1)
-
-			if (!validBranchRows[0]) {
-				return jsonError("Invalid branch assignment.", 400)
-			}
+		if (branchResult.error) {
+			return branchResult.error
 		}
 
-		updates.branchId = nextBranchId
+		updates.branchId = branchResult.branch?.id ?? null
 	}
 
-	if (typeof payload.verificationStatus === "string") {
-		updates.verificationStatus = payload.verificationStatus.trim()
+	if (payload?.verificationStatus !== undefined) {
+		if (
+			!CUSTOMER_VERIFICATION_STATUSES.includes(
+				payload.verificationStatus as (typeof CUSTOMER_VERIFICATION_STATUSES)[number],
+			)
+		) {
+			return jsonError("Invalid verification status.", 400)
+		}
+
+		updates.verificationStatus = payload.verificationStatus
 	}
 
 	if (
-		payload.verificationMetadata &&
-		typeof payload.verificationMetadata === "object"
+		payload?.verificationMetadata !== undefined &&
+		(typeof payload.verificationMetadata !== "object" ||
+			payload.verificationMetadata === null ||
+			Array.isArray(payload.verificationMetadata))
 	) {
+		return jsonError("Verification metadata must be an object.", 400)
+	}
+
+	if (payload?.verificationMetadata !== undefined) {
 		updates.verificationMetadata = payload.verificationMetadata
 	}
 
@@ -131,10 +153,138 @@ export async function PATCH(request: Request, { params }: RouteProps) {
 		.set(updates)
 		.where(
 			and(
+				eq(customer.organizationId, guard.viewer.activeOrganizationId),
 				eq(customer.id, customerId),
-				eq(customer.organizationId, organizationId),
 			),
 		)
+
+	return NextResponse.json({ success: true })
+}
+
+export async function DELETE(_: Request, { params }: RouteProps) {
+	const guard = await requireViewer({ permission: "manageCustomers" })
+
+	if (guard.response) {
+		return guard.response
+	}
+
+	const { customerId } = await params
+	const target = await resolveVisibleCustomer({
+		viewer: guard.viewer,
+		customerId,
+	})
+
+	if (target.response) {
+		return target.response
+	}
+
+	const rentalHistoryRows = await db
+		.select({ value: count() })
+		.from(rental)
+		.where(
+			and(
+				eq(rental.organizationId, guard.viewer.activeOrganizationId),
+				eq(rental.customerId, customerId),
+			),
+		)
+
+	if (Number(rentalHistoryRows[0]?.value ?? 0) > 0) {
+		return jsonError(
+			"This customer has rental history and cannot be deleted.",
+			409,
+		)
+	}
+
+	const adapter = getStorageAdapter()
+	const orphanedAssets = await db.transaction(async (tx) => {
+		const linkedAssets = await tx
+			.select({
+				id: mediaAsset.id,
+				pathname: mediaAsset.pathname,
+				metadata: mediaAsset.metadata,
+				visibility: mediaAsset.visibility,
+			})
+			.from(mediaLink)
+			.innerJoin(mediaAsset, eq(mediaLink.assetId, mediaAsset.id))
+			.where(
+				and(
+					eq(mediaLink.organizationId, guard.viewer.activeOrganizationId),
+					eq(mediaLink.entityType, "customer"),
+					eq(mediaLink.entityId, customerId),
+					isNull(mediaAsset.deletedAt),
+				),
+			)
+
+		await tx
+			.delete(mediaLink)
+			.where(
+				and(
+					eq(mediaLink.organizationId, guard.viewer.activeOrganizationId),
+					eq(mediaLink.entityType, "customer"),
+					eq(mediaLink.entityId, customerId),
+				),
+			)
+
+		const orphanCandidates: typeof linkedAssets = []
+
+		for (const asset of linkedAssets) {
+			const remainingLinks = await tx
+				.select({ value: count() })
+				.from(mediaLink)
+				.where(
+					and(
+						eq(mediaLink.organizationId, guard.viewer.activeOrganizationId),
+						eq(mediaLink.assetId, asset.id),
+					),
+				)
+
+			if (Number(remainingLinks[0]?.value ?? 0) === 0) {
+				orphanCandidates.push(asset)
+			}
+		}
+
+		if (orphanCandidates.length > 0) {
+			await tx
+				.update(mediaAsset)
+				.set({
+					status: "deleted",
+					deletedAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(mediaAsset.organizationId, guard.viewer.activeOrganizationId),
+						inArray(
+							mediaAsset.id,
+							orphanCandidates.map((asset) => asset.id),
+						),
+					),
+				)
+		}
+
+		await tx
+			.delete(customer)
+			.where(
+				and(
+					eq(customer.organizationId, guard.viewer.activeOrganizationId),
+					eq(customer.id, customerId),
+				),
+			)
+
+		return orphanCandidates
+	})
+
+	// Best-effort storage cleanup after the database transaction succeeds.
+	for (const asset of orphanedAssets) {
+		try {
+			await adapter.delete(asset.pathname, {
+				bucket: getMediaStorageBucketFromMetadata({
+					metadata: asset.metadata,
+					visibility: asset.visibility as StorageVisibility,
+				}),
+			})
+		} catch {}
+	}
 
 	return NextResponse.json({ success: true })
 }

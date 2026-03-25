@@ -1,32 +1,50 @@
 import { useQuery } from "@tanstack/react-query"
 
+import type { CustomerListResponse } from "@/features/customers/types"
 import { customersQueryKeys } from "./keys"
 
-export type CustomerListRecord = {
-	id: string
-	fullName: string
-	email: string | null
-	phone: string | null
-	branchId: string | null
-	branchName: string | null
+export function useCustomerListQuery(input: {
+	organizationId?: string
+	page: number
+	pageSize: number
+	search: string
+	branchId: string
 	verificationStatus: string
-	verificationMetadata: Record<string, unknown>
-	createdAt: string
-}
-
-export type CustomerListResponse = {
-	customers: CustomerListRecord[]
-	branches: Array<{ id: string; name: string; code: string }>
-	canManageCustomers: boolean
-	canManageCustomerNotes: boolean
-}
-
-export function useCustomerListQuery(organizationId?: string) {
+	status: string
+}) {
 	return useQuery({
-		queryKey: customersQueryKeys.list(organizationId),
-		enabled: Boolean(organizationId),
-		queryFn: async () => {
-			const response = await fetch("/api/customers", { method: "GET" })
+		queryKey: customersQueryKeys.list(input.organizationId, {
+			page: input.page,
+			pageSize: input.pageSize,
+			search: input.search,
+			branchId: input.branchId,
+			verificationStatus: input.verificationStatus,
+			status: input.status,
+		}),
+		enabled: Boolean(input.organizationId),
+		queryFn: async ({ signal }) => {
+			const query = new URLSearchParams({
+				page: String(input.page),
+				pageSize: String(input.pageSize),
+				status: input.status,
+			})
+
+			if (input.search) {
+				query.set("search", input.search)
+			}
+
+			if (input.branchId) {
+				query.set("branchId", input.branchId)
+			}
+
+			if (input.verificationStatus) {
+				query.set("verificationStatus", input.verificationStatus)
+			}
+
+			const response = await fetch(`/api/customers?${query.toString()}`, {
+				method: "GET",
+				signal,
+			})
 
 			if (!response.ok) {
 				const payload = (await response.json().catch(() => null)) as {

@@ -1225,7 +1225,7 @@ export async function commitRentalFlow(input: {
 			let resolvedCustomerId: string
 			if (parsed.matchedCustomerId) {
 				const selectedCustomer = await tx
-					.select({ id: customer.id })
+					.select({ id: customer.id, status: customer.status })
 					.from(customer)
 					.where(
 						and(
@@ -1240,6 +1240,10 @@ export async function commitRentalFlow(input: {
 					throw new Error("Selected customer was not found.")
 				}
 
+				if (selectedCustomer.status !== "active") {
+					throw new Error("Banned customers cannot be assigned to new rentals.")
+				}
+
 				resolvedCustomerId = selectedCustomer.id
 			} else {
 				const [createdCustomer] = await tx
@@ -1252,6 +1256,8 @@ export async function commitRentalFlow(input: {
 						emailNormalized: normalizeCustomerEmail(parsed.email),
 						phone: parsed.phone || null,
 						phoneNormalized: normalizeCustomerPhone(parsed.phone),
+						status: "active",
+						bannedAt: null,
 						verificationStatus: "pending",
 						verificationMetadata: { source: "rental-flow-v2" },
 					})
