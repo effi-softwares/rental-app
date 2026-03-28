@@ -33,23 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { PageSectionHeader } from "@/components/ui/page-section-header"
-import {
-	Pagination,
-	PaginationContent,
-	PaginationEllipsis,
-	PaginationItem,
-	PaginationLink,
-	PaginationNext,
-	PaginationPrevious,
-} from "@/components/ui/pagination"
 import { ResponsiveDrawer } from "@/components/ui/responsive-drawer"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
 import {
 	Table,
 	TableBody,
@@ -58,6 +42,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
+import {
+	WheelSelectField,
+	type WheelSelectOption,
+} from "@/components/ui/wheel-select-field"
 import { routes } from "@/config/routes"
 import { useAuthContextQuery } from "@/features/main/queries/use-auth-context-query"
 import { useRentalDraftQuery, useRentalsListQuery } from "@/features/rentals"
@@ -141,35 +129,6 @@ const scheduleSort: SortingFn<RentalListItem> = (left, right) => {
 	)
 }
 
-function buildPaginationItems(pageIndex: number, pageCount: number) {
-	if (pageCount <= 1) {
-		return [0]
-	}
-
-	const pages = new Set<number>([
-		0,
-		pageCount - 1,
-		pageIndex - 1,
-		pageIndex,
-		pageIndex + 1,
-	])
-	const normalizedPages = [...pages]
-		.filter((value) => value >= 0 && value < pageCount)
-		.sort((left, right) => left - right)
-
-	const items: Array<number | "ellipsis"> = []
-
-	for (const page of normalizedPages) {
-		const previous = items[items.length - 1]
-		if (typeof previous === "number" && page - previous > 1) {
-			items.push("ellipsis")
-		}
-		items.push(page)
-	}
-
-	return items
-}
-
 function SortableHeader({
 	label,
 	isSorted,
@@ -199,22 +158,13 @@ function SortableHeader({
 	)
 }
 
-function SummaryCard({
-	label,
-	value,
-	subtitle,
-}: {
-	label: string
-	value: string
-	subtitle: string
-}) {
+function SummaryCard({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="rounded-2xl border bg-background px-4 py-4 shadow-xs">
 			<p className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
 				{label}
 			</p>
-			<p className="mt-3 text-2xl font-semibold">{value}</p>
-			<p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
+			<p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
 		</div>
 	)
 }
@@ -232,9 +182,6 @@ function RentalIdentity({ rental }: { rental: RentalListItem }) {
 				<p className="text-muted-foreground truncate text-xs">
 					{rental.vehicle?.licensePlate ?? "No plate assigned"} • Rental{" "}
 					{rental.id.slice(0, 8)}
-				</p>
-				<p className="mt-2 text-xs font-medium text-foreground">
-					Open rental details
 				</p>
 			</Link>
 		</div>
@@ -351,9 +298,38 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 		return [...new Set(sortedRentals.map((rental) => rental.status))]
 	}, [sortedRentals])
 
+	const statusFilterOptions = useMemo<WheelSelectOption[]>(() => {
+		return [
+			{ value: "all", label: "All status" },
+			...statusOptions.map((status) => ({
+				value: status,
+				label: getRentalStatusLabel(status),
+			})),
+		]
+	}, [statusOptions])
+
 	const planOptions = useMemo(() => {
 		return [...new Set(sortedRentals.map((rental) => rental.paymentPlanKind))]
 	}, [sortedRentals])
+
+	const planFilterOptions = useMemo<WheelSelectOption[]>(() => {
+		return [
+			{ value: "all", label: "All plans" },
+			...planOptions.map((plan) => ({
+				value: plan,
+				label: getRentalPlanLabel(plan),
+			})),
+		]
+	}, [planOptions])
+
+	const pageSizeFilterOptions = useMemo<WheelSelectOption[]>(
+		() =>
+			pageSizeOptions.map((size) => ({
+				value: String(size),
+				label: `${size} per page`,
+			})),
+		[],
+	)
 
 	const summary = useMemo(() => {
 		const scheduled = sortedRentals.filter(
@@ -554,16 +530,25 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 	const pageRows = table.getRowModel().rows
 	const { pageIndex, pageSize } = table.getState().pagination
 	const totalFilteredRows = filteredRows.length
-	const pageCount = Math.max(table.getPageCount(), 1)
 	const pageStart = totalFilteredRows === 0 ? 0 : pageIndex * pageSize + 1
 	const pageEnd = Math.min((pageIndex + 1) * pageSize, totalFilteredRows)
-	const paginationItems = buildPaginationItems(pageIndex, pageCount)
+	const statusFilterValue = String(
+		table.getColumn("status")?.getFilterValue() ?? "all",
+	)
+	const planFilterValue = String(
+		table.getColumn("plan")?.getFilterValue() ?? "all",
+	)
+	const hasActiveFilters = Boolean(
+		globalFilter.trim() ||
+			statusFilterValue !== "all" ||
+			planFilterValue !== "all" ||
+			pageSize !== 10,
+	)
 
 	return (
-		<div className="space-y-5">
+		<div className="space-y-4">
 			<PageSectionHeader
 				title="Rentals"
-				description="Track each rental clearly, find what matters fast, and move the next step forward with confidence."
 				actions={
 					<Button className="h-10" onClick={() => setIsCreateDrawerOpen(true)}>
 						New rental
@@ -572,108 +557,83 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 			/>
 
 			<div className="grid gap-3 md:grid-cols-3">
-				<SummaryCard
-					label="Needs action"
-					value={String(summary.attention)}
-					subtitle="Scheduled and active rentals appear first so staff can act quickly."
-				/>
-				<SummaryCard
-					label="Scheduled"
-					value={String(summary.scheduled)}
-					subtitle="These rentals are waiting for vehicle handover."
-				/>
-				<SummaryCard
-					label="Active"
-					value={String(summary.active)}
-					subtitle="These rentals are already out and will move into return next."
-				/>
+				<SummaryCard label="Needs action" value={String(summary.attention)} />
+				<SummaryCard label="Scheduled" value={String(summary.scheduled)} />
+				<SummaryCard label="Active" value={String(summary.active)} />
 			</div>
 
-			<section className="rounded-3xl border bg-background shadow-xs">
-				<header className="border-b px-4 py-4 sm:px-5">
-					<div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-						<div>
-							<p className="text-base font-semibold">Rental list</p>
-							<p className="text-muted-foreground text-sm">
-								Search, sort, and filter rentals without losing the next action.
-							</p>
-						</div>
-						<Badge variant="outline">{totalFilteredRows} results</Badge>
-					</div>
-				</header>
-
-				<div className="space-y-3 border-b px-4 py-4 sm:px-5">
-					<div className="grid gap-2 xl:grid-cols-[1fr_220px_180px_auto]">
-						<div className="relative">
-							<Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-							<Input
-								value={globalFilter}
-								onChange={(event) => setGlobalFilter(event.target.value)}
-								placeholder="Search by rental, vehicle, plate, customer, phone, or email"
-								className="h-10 pl-9"
-							/>
-						</div>
-
-						<Select
-							value={String(
-								table.getColumn("status")?.getFilterValue() ?? "all",
-							)}
-							onValueChange={(value) => {
-								table
-									.getColumn("status")
-									?.setFilterValue(value === "all" ? undefined : value)
-							}}
-						>
-							<SelectTrigger className="h-10 w-full">
-								<SelectValue placeholder="Status" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All status</SelectItem>
-								{statusOptions.map((status) => (
-									<SelectItem key={status} value={status}>
-										{getRentalStatusLabel(status)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-
-						<Select
-							value={String(table.getColumn("plan")?.getFilterValue() ?? "all")}
-							onValueChange={(value) => {
-								table
-									.getColumn("plan")
-									?.setFilterValue(value === "all" ? undefined : value)
-							}}
-						>
-							<SelectTrigger className="h-10 w-full">
-								<SelectValue placeholder="Plan" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All plans</SelectItem>
-								{planOptions.map((plan) => (
-									<SelectItem key={plan} value={plan}>
-										{getRentalPlanLabel(plan)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-
-						<Button
-							type="button"
-							variant="outline"
-							className="h-10"
-							onClick={() => {
-								setGlobalFilter("")
-								table.resetColumnFilters()
-								setSorting([])
-								table.setPageIndex(0)
-							}}
-						>
-							Reset
-						</Button>
-					</div>
+			<div className="grid gap-3 rounded-2xl p-3 lg:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))_auto]">
+				<div className="relative">
+					<Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+					<Input
+						value={globalFilter}
+						onChange={(event) => {
+							setGlobalFilter(event.target.value)
+							table.setPageIndex(0)
+						}}
+						placeholder="Search by rental, vehicle, plate, customer, phone, or email"
+						className="h-11 pl-9"
+					/>
 				</div>
 
+				<WheelSelectField
+					value={statusFilterValue}
+					options={statusFilterOptions}
+					placeholder="All status"
+					title="Filter rental status"
+					description="Choose which rental status to show."
+					onValueChange={(value) => {
+						table
+							.getColumn("status")
+							?.setFilterValue(value === "all" ? undefined : value)
+						table.setPageIndex(0)
+					}}
+				/>
+
+				<WheelSelectField
+					value={planFilterValue}
+					options={planFilterOptions}
+					placeholder="All plans"
+					title="Filter rental plan"
+					description="Choose which payment plan to show."
+					onValueChange={(value) => {
+						table
+							.getColumn("plan")
+							?.setFilterValue(value === "all" ? undefined : value)
+						table.setPageIndex(0)
+					}}
+				/>
+
+				<WheelSelectField
+					value={String(pageSize)}
+					options={pageSizeFilterOptions}
+					placeholder="Rows per page"
+					title="Rows per page"
+					description="Choose how many rentals to load per page."
+					onValueChange={(value) => {
+						table.setPageSize(Number(value))
+						table.setPageIndex(0)
+					}}
+				/>
+
+				<Button
+					type="button"
+					variant="outline"
+					className="h-11"
+					disabled={!hasActiveFilters}
+					onClick={() => {
+						setGlobalFilter("")
+						table.resetColumnFilters()
+						setSorting([])
+						table.setPageSize(10)
+						table.setPageIndex(0)
+					}}
+				>
+					Reset filters
+				</Button>
+			</div>
+
+			<section className="space-y-4">
 				<div className="md:hidden">
 					{rentalsQuery.isPending ? (
 						<p className="text-muted-foreground px-4 py-8 text-sm sm:px-5">
@@ -694,10 +654,10 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 								return (
 									<article
 										key={rental.id}
-										className="rounded-2xl border bg-muted/20 p-4"
+										className="rounded-2xl border bg-background p-4 shadow-xs"
 									>
 										<div className="flex items-start justify-between gap-3">
-											<div className="min-w-0">
+											<div className="min-w-0 flex-1">
 												<RentalIdentity rental={rental} />
 											</div>
 											<RentalTransitionMenu
@@ -719,31 +679,36 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 											</Badge>
 										</div>
 
-										<div className="mt-4 grid gap-3 text-sm">
-											<div>
-												<p className="text-muted-foreground text-xs">
+										<div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+											<div className="rounded-xl border bg-muted/20 px-3 py-2.5">
+												<p className="text-muted-foreground text-[11px] uppercase tracking-[0.16em]">
 													Customer
 												</p>
-												<p className="mt-1 font-medium">
+												<p className="mt-1 truncate font-medium">
 													{rental.customer?.fullName ?? "Customer pending"}
 												</p>
+												<p className="text-muted-foreground mt-1 truncate text-xs">
+													{rental.customer?.email ??
+														rental.customer?.phone ??
+														"-"}
+												</p>
 											</div>
-											<div>
-												<p className="text-muted-foreground text-xs">
+											<div className="rounded-xl border bg-muted/20 px-3 py-2.5">
+												<p className="text-muted-foreground text-[11px] uppercase tracking-[0.16em]">
 													Schedule
 												</p>
-												<p className="mt-1">
+												<p className="mt-1 font-medium">
 													{formatDateTime(rental.plannedStartAt)}
 												</p>
-												<p className="text-muted-foreground text-xs">
+												<p className="text-muted-foreground mt-1 text-xs">
 													Ends {formatDateTime(rental.plannedEndAt)}
 												</p>
 											</div>
-											<div>
-												<p className="text-muted-foreground text-xs">
+											<div className="rounded-xl border bg-muted/20 px-3 py-2.5">
+												<p className="text-muted-foreground text-[11px] uppercase tracking-[0.16em]">
 													Next step
 												</p>
-												<p className="mt-1 font-medium">
+												<p className="mt-1 font-medium leading-5">
 													{getRentalNextStepCopy(nextAction)}
 												</p>
 											</div>
@@ -755,139 +720,97 @@ export function RentalManagement({ statusPreset }: RentalManagementProps) {
 					)}
 				</div>
 
-				<div className="hidden md:block px-4 py-4 sm:px-5">
-					<Table>
-						<TableHeader>
-							{table.getHeaderGroups().map((headerGroup) => (
-								<TableRow key={headerGroup.id}>
-									{headerGroup.headers.map((header) => (
-										<TableHead key={header.id}>
-											{header.isPlaceholder
-												? null
-												: flexRender(
-														header.column.columnDef.header,
-														header.getContext(),
-													)}
-										</TableHead>
+				<div className="hidden md:block">
+					<div className="overflow-hidden rounded-2xl border">
+						<div className="overflow-x-auto px-4 pb-2 pt-1">
+							<Table>
+								<TableHeader>
+									{table.getHeaderGroups().map((headerGroup) => (
+										<TableRow
+											key={headerGroup.id}
+											className="bg-muted/20 hover:bg-muted/20"
+										>
+											{headerGroup.headers.map((header) => (
+												<TableHead key={header.id}>
+													{header.isPlaceholder
+														? null
+														: flexRender(
+																header.column.columnDef.header,
+																header.getContext(),
+															)}
+												</TableHead>
+											))}
+										</TableRow>
 									))}
-								</TableRow>
-							))}
-						</TableHeader>
-						<TableBody>
-							{rentalsQuery.isPending ? (
-								<TableRow>
-									<TableCell
-										colSpan={columns.length}
-										className="h-24 text-center"
-									>
-										Loading rentals...
-									</TableCell>
-								</TableRow>
-							) : pageRows.length === 0 ? (
-								<TableRow>
-									<TableCell
-										colSpan={columns.length}
-										className="h-24 text-center"
-									>
-										No rentals match your current search or filters.
-									</TableCell>
-								</TableRow>
-							) : (
-								pageRows.map((row) => (
-									<TableRow key={row.id}>
-										{row.getVisibleCells().map((cell) => (
-											<TableCell key={cell.id}>
-												{flexRender(
-													cell.column.columnDef.cell,
-													cell.getContext(),
-												)}
+								</TableHeader>
+								<TableBody>
+									{rentalsQuery.isPending ? (
+										<TableRow>
+											<TableCell
+												colSpan={columns.length}
+												className="h-24 text-center"
+											>
+												Loading rentals...
 											</TableCell>
-										))}
-									</TableRow>
-								))
-							)}
-						</TableBody>
-					</Table>
+										</TableRow>
+									) : pageRows.length === 0 ? (
+										<TableRow>
+											<TableCell
+												colSpan={columns.length}
+												className="h-24 text-center"
+											>
+												No rentals match your current search or filters.
+											</TableCell>
+										</TableRow>
+									) : (
+										pageRows.map((row) => (
+											<TableRow key={row.id}>
+												{row.getVisibleCells().map((cell) => (
+													<TableCell key={cell.id}>
+														{flexRender(
+															cell.column.columnDef.cell,
+															cell.getContext(),
+														)}
+													</TableCell>
+												))}
+											</TableRow>
+										))
+									)}
+								</TableBody>
+							</Table>
+						</div>
+					</div>
 				</div>
 
-				<footer className="flex flex-col gap-3 border-t px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+				<footer className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="text-muted-foreground text-sm">
-						Showing {pageStart}-{pageEnd} of {totalFilteredRows} rentals
+						{totalFilteredRows === 0
+							? "No rentals"
+							: `Showing ${pageStart}-${pageEnd} of ${totalFilteredRows} rentals`}
 					</div>
 
-					<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-						<Select
-							value={String(pageSize)}
-							onValueChange={(value) => table.setPageSize(Number(value))}
-						>
-							<SelectTrigger className="h-9 w-full sm:w-28">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{pageSizeOptions.map((size) => (
-									<SelectItem key={size} value={String(size)}>
-										{size} / page
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+					<div className="flex flex-wrap items-center gap-2 sm:justify-end">
+						<div className="text-muted-foreground px-2 text-xs">
+							Page {pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
+						</div>
 
-						<Pagination className="justify-start lg:justify-center">
-							<PaginationContent>
-								<PaginationItem>
-									<PaginationPrevious
-										href="#"
-										onClick={(event) => {
-											event.preventDefault()
-											table.previousPage()
-										}}
-										className={
-											!table.getCanPreviousPage()
-												? "pointer-events-none opacity-50"
-												: undefined
-										}
-									/>
-								</PaginationItem>
-								{paginationItems.map((item, index) => (
-									<PaginationItem
-										key={
-											item === "ellipsis"
-												? `ellipsis-after-${paginationItems[index - 1]}`
-												: `page-${item}`
-										}
-									>
-										{item === "ellipsis" ? (
-											<PaginationEllipsis />
-										) : (
-											<PaginationLink
-												href="#"
-												isActive={item === pageIndex}
-												onClick={(event) => {
-													event.preventDefault()
-													table.setPageIndex(item)
-												}}
-											>
-												{item + 1}
-											</PaginationLink>
-										)}
-									</PaginationItem>
-								))}
-								<PaginationItem>
-									<PaginationNext
-										href="#"
-										onClick={(event) => {
-											event.preventDefault()
-											table.nextPage()
-										}}
-										className={
-											!table.getCanNextPage()
-												? "pointer-events-none opacity-50"
-												: undefined
-										}
-									/>
-								</PaginationItem>
-							</PaginationContent>
-						</Pagination>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => table.previousPage()}
+							disabled={!table.getCanPreviousPage()}
+						>
+							Previous
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							onClick={() => table.nextPage()}
+							disabled={!table.getCanNextPage()}
+						>
+							Next
+						</Button>
 					</div>
 				</footer>
 			</section>
