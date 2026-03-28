@@ -1,9 +1,29 @@
 "use client"
 
 import {
+	Archive,
+	BatteryCharging,
+	Calendar,
+	CalendarDays,
+	CalendarRange,
 	CheckCircle2,
 	Circle,
+	Compass,
+	Droplets,
+	Fuel,
+	Gauge,
+	KeyRound,
+	Leaf,
 	LoaderCircle,
+	type LucideIcon,
+	MoveLeft,
+	MoveRight,
+	Route,
+	Ruler,
+	Settings2,
+	Truck,
+	Wrench,
+	Zap,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +48,7 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
 	ColorDrawerInput,
+	DrawerDateInput,
 	type DrawerOption,
 	DrawerSelectInput,
 } from "@/components/vehicles/vehicle-form-picker-controls"
@@ -127,11 +148,75 @@ type VehicleCreateWizardDrawerProps = {
 	onRemoveRate: (rateIndex: number) => void
 }
 
-const wizardSurfaceClassName =
-	"rounded-2xl border border-border bg-background shadow-xs"
+const wizardSurfaceClassName = "border-t border-border/60 pt-5 sm:pt-6"
 
-const wizardInsetClassName =
-	"rounded-2xl border border-border bg-background shadow-xs"
+const wizardInsetClassName = "border-t border-border/50"
+
+const wizardColumnDividerClassName = "xl:border-l xl:border-border/60 xl:pl-6"
+
+const wizardToggleGroupClassName = "flex w-full flex-nowrap gap-2"
+
+const wizardToggleGroupItemClassName =
+	"h-14 min-w-0 flex-1 justify-center !rounded-lg group-data-[spacing=0]/toggle-group:!rounded-lg border border-border bg-background px-4 text-center font-medium whitespace-normal leading-tight text-foreground shadow-none transition-[background-color,border-color,color,box-shadow] duration-200 hover:bg-background data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-[0_0_0_1px_hsl(var(--primary))] sm:px-5"
+
+const transmissionIcons: Record<Transmission, LucideIcon> = {
+	Automatic: Gauge,
+	Manual: Wrench,
+	"Semi-Automatic": Settings2,
+}
+
+const fuelTypeIcons: Record<FuelType, LucideIcon> = {
+	Petrol: Fuel,
+	Diesel: Truck,
+	Electric: BatteryCharging,
+	Hybrid: Leaf,
+	Hydrogen: Droplets,
+}
+
+const drivetrainIcons: Record<Drivetrain, LucideIcon> = {
+	FWD: MoveRight,
+	RWD: MoveLeft,
+	AWD: Compass,
+	"4WD": Route,
+	"Electric-Single": Zap,
+	"Electric-Dual": BatteryCharging,
+}
+
+const vehicleStatusIcons: Record<VehicleStatus, LucideIcon> = {
+	Available: CheckCircle2,
+	Rented: KeyRound,
+	Maintenance: Wrench,
+	Retired: Archive,
+}
+
+const pricingModelIcons: Record<PricingModel, LucideIcon> = {
+	Daily: CalendarDays,
+	Weekly: CalendarRange,
+	Monthly: Calendar,
+	"Distance-Based": Route,
+}
+
+const distanceUnitIcons: Record<DistanceUnit, LucideIcon> = {
+	km: Ruler,
+	miles: Route,
+}
+
+function WizardToggleButtonContent({
+	label,
+	icon: Icon,
+}: {
+	label: string
+	icon: LucideIcon
+}) {
+	return (
+		<span className="flex min-w-0 flex-col items-center justify-center gap-1">
+			<Icon className="size-4 shrink-0" />
+			<span className="min-w-0 text-[11px] leading-tight sm:text-xs">
+				{label}
+			</span>
+		</span>
+	)
+}
 
 function StepRailItem({
 	index,
@@ -198,13 +283,16 @@ function ImageProgressCard({
 			</div>
 
 			<div className="space-y-3">
-				{imagePreviewGroups.map((group) => {
+				{imagePreviewGroups.map((group, index) => {
 					const isActive = group.key === activeImageGroup
 					const complete = group.assets.length > 0
 					return (
 						<div
 							key={group.key}
-							className={cn(wizardInsetClassName, "px-4 py-3")}
+							className={cn(
+								index === 0 ? "pt-0" : wizardInsetClassName,
+								"px-1 py-3",
+							)}
 						>
 							<div className="flex items-center justify-between gap-3">
 								<div>
@@ -297,9 +385,9 @@ export function VehicleCreateWizardDrawer({
 				<div className="shrink-0 border-b bg-sidebar">
 					<DrawerHeader className="mx-auto w-full max-w-7xl px-4 pb-3 pt-4 text-left sm:px-6 lg:px-8">
 						<div className="min-w-0 space-y-2">
-								<DrawerTitle className="text-xl font-semibold tracking-tight">
-									{title}
-								</DrawerTitle>
+							<DrawerTitle className="text-xl font-semibold tracking-tight">
+								{title}
+							</DrawerTitle>
 							<DrawerDescription className="max-w-3xl text-xs sm:text-sm">
 								{description}
 							</DrawerDescription>
@@ -515,9 +603,6 @@ export function VehicleCreateWizardDrawer({
 
 										<VehicleImageGroupUpload
 											title={imageGroupLabels[activeImageGroup].title}
-											description={
-												imageGroupLabels[activeImageGroup].description
-											}
 											assets={formValues.images[activeImageGroup]}
 											isUploading={
 												uploadImagesPending &&
@@ -538,7 +623,9 @@ export function VehicleCreateWizardDrawer({
 										/>
 									</div>
 
-									<div className="space-y-6">
+									<div
+										className={cn("space-y-6", wizardColumnDividerClassName)}
+									>
 										<ImageProgressCard
 											activeImageGroup={activeImageGroup}
 											imageGroupLabels={imageGroupLabels}
@@ -581,15 +668,18 @@ export function VehicleCreateWizardDrawer({
 														}
 														updateSpecs({ transmission: value as Transmission })
 													}}
-													className="flex w-full flex-wrap gap-2"
+													className={wizardToggleGroupClassName}
 												>
 													{transmissions.map((transmission) => (
 														<ToggleGroupItem
 															key={transmission}
 															value={transmission}
-															className="h-11 px-3"
+															className={wizardToggleGroupItemClassName}
 														>
-															{transmission}
+															<WizardToggleButtonContent
+																label={transmission}
+																icon={transmissionIcons[transmission]}
+															/>
 														</ToggleGroupItem>
 													))}
 												</ToggleGroup>
@@ -606,15 +696,18 @@ export function VehicleCreateWizardDrawer({
 														}
 														updateSpecs({ fuelType: value as FuelType })
 													}}
-													className="flex w-full flex-wrap gap-2"
+													className={wizardToggleGroupClassName}
 												>
 													{fuelTypes.map((fuelType) => (
 														<ToggleGroupItem
 															key={fuelType}
 															value={fuelType}
-															className="h-11 px-3"
+															className={wizardToggleGroupItemClassName}
 														>
-															{fuelType}
+															<WizardToggleButtonContent
+																label={fuelType}
+																icon={fuelTypeIcons[fuelType]}
+															/>
 														</ToggleGroupItem>
 													))}
 												</ToggleGroup>
@@ -631,15 +724,18 @@ export function VehicleCreateWizardDrawer({
 														}
 														updateSpecs({ drivetrain: value as Drivetrain })
 													}}
-													className="flex w-full flex-wrap gap-2"
+													className={wizardToggleGroupClassName}
 												>
 													{drivetrains.map((drivetrain) => (
 														<ToggleGroupItem
 															key={drivetrain}
 															value={drivetrain}
-															className="h-11 px-3"
+															className={wizardToggleGroupItemClassName}
 														>
-															{drivetrain}
+															<WizardToggleButtonContent
+																label={drivetrain}
+																icon={drivetrainIcons[drivetrain]}
+															/>
 														</ToggleGroupItem>
 													))}
 												</ToggleGroup>
@@ -701,7 +797,9 @@ export function VehicleCreateWizardDrawer({
 										</div>
 									</div>
 
-									<div className="space-y-6">
+									<div
+										className={cn("space-y-6", wizardColumnDividerClassName)}
+									>
 										<div
 											className={cn(
 												wizardSurfaceClassName,
@@ -779,135 +877,129 @@ export function VehicleCreateWizardDrawer({
 
 						{drawerStep === 5 ? (
 							<FieldGroup className="space-y-6">
-									<div className="space-y-6">
-										<div
-											className={cn(
-												wizardSurfaceClassName,
-												"space-y-5 p-5 sm:p-6",
-											)}
-										>
-											<div>
-												<p className="text-sm font-semibold">Fleet status</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Set the availability state that downstream rental
-													flows and the catalog should respect.
-												</p>
-											</div>
-
-											<Field>
-												<FieldLabel>Status</FieldLabel>
-												<ToggleGroup
-													type="single"
-													value={formValues.operations.status}
-													onValueChange={(value) => {
-														if (!value) {
-															return
-														}
-														updateOperations({
-															status: value as VehicleStatus,
-														})
-													}}
-													className="flex w-full flex-wrap gap-2"
-												>
-													{vehicleStatuses.map((status) => (
-														<ToggleGroupItem
-															key={status}
-															value={status}
-															className="h-11 px-3"
-														>
-															{status}
-														</ToggleGroupItem>
-													))}
-												</ToggleGroup>
-											</Field>
+								<div className="space-y-6">
+									<div
+										className={cn(
+											wizardSurfaceClassName,
+											"space-y-5 p-5 sm:p-6",
+										)}
+									>
+										<div>
+											<p className="text-sm font-semibold">Fleet status</p>
+											<p className="text-muted-foreground mt-1 text-sm">
+												Set the availability state that downstream rental flows
+												and the catalog should respect.
+											</p>
 										</div>
 
-										<div
-											className={cn(
-												wizardSurfaceClassName,
-												"space-y-5 p-5 sm:p-6",
-											)}
-										>
-											<div>
-												<p className="text-sm font-semibold">
-													Compliance dates
-												</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Registration and insurance dates should be current
-													before the vehicle starts appearing in active
-													inventory.
-												</p>
-											</div>
-											<div className="grid gap-5 md:grid-cols-2">
-												<Field>
-													<FieldLabel htmlFor="registration-expiry">
-														Registration expiry
-													</FieldLabel>
-													<Input
-														id="registration-expiry"
-														type="date"
-														value={formValues.operations.registrationExpiryDate}
-														onChange={(event) =>
-															updateOperations({
-																registrationExpiryDate: event.target.value,
-															})
-														}
-														className="h-12"
-													/>
-												</Field>
-												<Field>
-													<FieldLabel htmlFor="insurance-expiry">
-														Insurance expiry
-													</FieldLabel>
-													<Input
-														id="insurance-expiry"
-														type="date"
-														value={formValues.operations.insuranceExpiryDate}
-														onChange={(event) =>
-															updateOperations({
-																insuranceExpiryDate: event.target.value,
-															})
-														}
-														className="h-12"
-													/>
-												</Field>
-											</div>
-										</div>
+										<Field>
+											<FieldLabel>Status</FieldLabel>
+											<ToggleGroup
+												type="single"
+												value={formValues.operations.status}
+												onValueChange={(value) => {
+													if (!value) {
+														return
+													}
+													updateOperations({
+														status: value as VehicleStatus,
+													})
+												}}
+												className={wizardToggleGroupClassName}
+											>
+												{vehicleStatuses.map((status) => (
+													<ToggleGroupItem
+														key={status}
+														value={status}
+														className={wizardToggleGroupItemClassName}
+													>
+														<WizardToggleButtonContent
+															label={status}
+															icon={vehicleStatusIcons[status]}
+														/>
+													</ToggleGroupItem>
+												))}
+											</ToggleGroup>
+										</Field>
 									</div>
 
-									<div className="space-y-6">
-										<div
-											className={cn(
-												wizardSurfaceClassName,
-												"space-y-5 p-5 sm:p-6",
-											)}
-										>
-											<div>
-												<p className="text-sm font-semibold">
-													Insurance record
-												</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Keep the policy reference here so the operations team
-													can find it quickly without leaving the vehicle flow.
-												</p>
-											</div>
+									<div
+										className={cn(
+											wizardSurfaceClassName,
+											"space-y-5 p-5 sm:p-6",
+										)}
+									>
+										<div>
+											<p className="text-sm font-semibold">Compliance dates</p>
+											<p className="text-muted-foreground mt-1 text-sm">
+												Registration and insurance dates should be current
+												before the vehicle starts appearing in active inventory.
+											</p>
+										</div>
+										<div className="grid gap-5 md:grid-cols-2">
 											<Field>
-												<FieldLabel htmlFor="policy-number">
-													Insurance policy number
-												</FieldLabel>
-												<Input
-													id="policy-number"
-													value={formValues.operations.insurancePolicyNumber}
-													onChange={(event) =>
+												<FieldLabel>Registration expiry</FieldLabel>
+												<DrawerDateInput
+													value={formValues.operations.registrationExpiryDate}
+													placeholder="Select registration expiry"
+													drawerTitle="Select registration expiry"
+													drawerDescription="Choose the registration expiry date using the wheel selector."
+													onValueChange={(value) =>
 														updateOperations({
-															insurancePolicyNumber: event.target.value,
+															registrationExpiryDate: value,
 														})
 													}
-													className="h-12"
+												/>
+											</Field>
+											<Field>
+												<FieldLabel>Insurance expiry</FieldLabel>
+												<DrawerDateInput
+													value={formValues.operations.insuranceExpiryDate}
+													placeholder="Select insurance expiry"
+													drawerTitle="Select insurance expiry"
+													drawerDescription="Choose the insurance expiry date using the wheel selector."
+													onValueChange={(value) =>
+														updateOperations({
+															insuranceExpiryDate: value,
+														})
+													}
 												/>
 											</Field>
 										</div>
 									</div>
+								</div>
+
+								<div className="space-y-6">
+									<div
+										className={cn(
+											wizardSurfaceClassName,
+											"space-y-5 p-5 sm:p-6",
+										)}
+									>
+										<div>
+											<p className="text-sm font-semibold">Insurance record</p>
+											<p className="text-muted-foreground mt-1 text-sm">
+												Keep the policy reference here so the operations team
+												can find it quickly without leaving the vehicle flow.
+											</p>
+										</div>
+										<Field>
+											<FieldLabel htmlFor="policy-number">
+												Insurance policy number
+											</FieldLabel>
+											<Input
+												id="policy-number"
+												value={formValues.operations.insurancePolicyNumber}
+												onChange={(event) =>
+													updateOperations({
+														insurancePolicyNumber: event.target.value,
+													})
+												}
+												className="h-12"
+											/>
+										</Field>
+									</div>
+								</div>
 							</FieldGroup>
 						) : null}
 
@@ -937,21 +1029,17 @@ export function VehicleCreateWizardDrawer({
 										return (
 											<div
 												key={`${rate.pricingModel}-${rateIndex}`}
-												className={cn(wizardSurfaceClassName, "p-5 sm:p-6")}
+												className={cn(
+													wizardSurfaceClassName,
+													"space-y-5 p-5 sm:p-6",
+												)}
 											>
-												<div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
-													<div className="space-y-4">
-														<div>
+												<div className="flex flex-col gap-4 border-b border-border/50 pb-5 sm:flex-row sm:items-start sm:justify-between">
+													<div className="space-y-3">
+														<div className="flex flex-wrap items-center gap-2">
 															<p className="text-sm font-semibold">
 																{rate.pricingModel} rental
 															</p>
-															<p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-																{isMonthlyPrimary
-																	? "This is the required primary pricing model for each vehicle."
-																	: "Use optional models only when they support a real booking path."}
-															</p>
-														</div>
-														<div className="flex flex-wrap gap-2">
 															<Badge
 																variant={
 																	isMonthlyPrimary ? "default" : "outline"
@@ -967,229 +1055,82 @@ export function VehicleCreateWizardDrawer({
 																{rate.mileagePolicy.mileageType}
 															</Badge>
 														</div>
-														<Button
-															type="button"
-															variant="outline"
-															onClick={() => onRemoveRate(rateIndex)}
-															disabled={isMonthlyPrimary}
-															className="h-10 w-full justify-start rounded-2xl"
-														>
+														<p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">
 															{isMonthlyPrimary
-																? "Primary required"
-																: "Remove rate"}
-														</Button>
+																? "This is the required primary pricing model for each vehicle."
+																: "Use optional models only when they support a real booking path."}
+														</p>
 													</div>
 
-													<div className="space-y-5">
+													{!isMonthlyPrimary ? (
+														<Button
+															type="button"
+															variant="destructive"
+															onClick={() => onRemoveRate(rateIndex)}
+															className="h-10 rounded-2xl px-4 sm:w-auto"
+														>
+															Remove rate
+														</Button>
+													) : null}
+												</div>
+
+												<div className="space-y-5">
+													<Field>
+														<FieldLabel>Pricing model</FieldLabel>
+														<ToggleGroup
+															type="single"
+															value={rate.pricingModel}
+															onValueChange={(value) => {
+																if (!value) {
+																	return
+																}
+																onRateModelChange(
+																	rateIndex,
+																	value as PricingModel,
+																)
+															}}
+															className={wizardToggleGroupClassName}
+														>
+															{pricingModels.map((pricingModel) => (
+																<ToggleGroupItem
+																	key={pricingModel}
+																	value={pricingModel}
+																	disabled={isUsedByAnotherRate(pricingModel)}
+																	className={wizardToggleGroupItemClassName}
+																>
+																	<WizardToggleButtonContent
+																		label={pricingModel}
+																		icon={pricingModelIcons[pricingModel]}
+																	/>
+																</ToggleGroupItem>
+															))}
+														</ToggleGroup>
+													</Field>
+
+													<div className="grid gap-4 md:grid-cols-2">
 														<Field>
-															<FieldLabel>Pricing model</FieldLabel>
-															<ToggleGroup
-																type="single"
-																value={rate.pricingModel}
-																onValueChange={(value) => {
-																	if (!value) {
-																		return
+															<FieldLabel htmlFor={`rate-amount-${rateIndex}`}>
+																Rate
+															</FieldLabel>
+															<InputGroup className="h-12">
+																<InputGroupInput
+																	id={`rate-amount-${rateIndex}`}
+																	type="number"
+																	min={0}
+																	step="0.01"
+																	value={String(rate.rate)}
+																	onChange={(event) =>
+																		updateRateAtIndex(rateIndex, {
+																			rate: Number(event.target.value || 0),
+																		})
 																	}
-																	onRateModelChange(
-																		rateIndex,
-																		value as PricingModel,
-																	)
-																}}
-																className="flex w-full flex-wrap gap-2"
-															>
-																{pricingModels.map((pricingModel) => (
-																	<ToggleGroupItem
-																		key={pricingModel}
-																		value={pricingModel}
-																		disabled={isUsedByAnotherRate(pricingModel)}
-																		className="h-11 min-w-30 px-3"
-																	>
-																		{pricingModel}
-																	</ToggleGroupItem>
-																))}
-															</ToggleGroup>
+																	className="h-full"
+																/>
+																<InputGroupAddon align="inline-end">
+																	<InputGroupText>USD</InputGroupText>
+																</InputGroupAddon>
+															</InputGroup>
 														</Field>
-
-														<div className="grid gap-4 md:grid-cols-2">
-															<Field>
-																<FieldLabel
-																	htmlFor={`rate-amount-${rateIndex}`}
-																>
-																	Rate
-																</FieldLabel>
-																<InputGroup className="h-12">
-																	<InputGroupInput
-																		id={`rate-amount-${rateIndex}`}
-																		type="number"
-																		min={0}
-																		step="0.01"
-																		value={String(rate.rate)}
-																		onChange={(event) =>
-																			updateRateAtIndex(rateIndex, {
-																				rate: Number(event.target.value || 0),
-																			})
-																		}
-																		className="h-full"
-																	/>
-																	<InputGroupAddon align="inline-end">
-																		<InputGroupText>USD</InputGroupText>
-																	</InputGroupAddon>
-																</InputGroup>
-															</Field>
-
-															<div className={cn(wizardInsetClassName, "p-4")}>
-																<Field
-																	orientation="horizontal"
-																	className="items-center justify-between gap-4"
-																>
-																	<div>
-																		<FieldLabel
-																			htmlFor={`limited-mileage-${rateIndex}`}
-																		>
-																			Limited mileage
-																		</FieldLabel>
-																		<p className="text-muted-foreground mt-1 text-sm">
-																			Default is unlimited mileage.
-																		</p>
-																	</div>
-																	<Switch
-																		id={`limited-mileage-${rateIndex}`}
-																		checked={
-																			rate.mileagePolicy.mileageType ===
-																			"Limited"
-																		}
-																		onCheckedChange={(checked) =>
-																			updateRateAtIndex(rateIndex, {
-																				mileagePolicy: checked
-																					? limitedMileagePolicy
-																					: { mileageType: "Unlimited" },
-																			})
-																		}
-																	/>
-																</Field>
-															</div>
-														</div>
-
-														{rate.mileagePolicy.mileageType === "Limited" ? (
-															<div
-																className={cn(
-																	wizardInsetClassName,
-																	"grid gap-4 p-4 md:grid-cols-3",
-																)}
-															>
-																<Field>
-																	<FieldLabel
-																		htmlFor={`limit-per-day-${rateIndex}`}
-																	>
-																		Daily limit
-																	</FieldLabel>
-																	<InputGroup className="h-12">
-																		<InputGroupInput
-																			id={`limit-per-day-${rateIndex}`}
-																			type="number"
-																			min={1}
-																			value={String(
-																				limitedMileagePolicy.limitPerDay,
-																			)}
-																			onChange={(event) =>
-																				updateRateAtIndex(rateIndex, {
-																					mileagePolicy: {
-																						mileageType: "Limited",
-																						limitPerDay: Number(
-																							event.target.value || 1,
-																						),
-																						overageFeePerUnit:
-																							limitedMileagePolicy.overageFeePerUnit,
-																						measureUnit:
-																							limitedMileagePolicy.measureUnit,
-																					},
-																				})
-																			}
-																			className="h-full"
-																		/>
-																		<InputGroupAddon align="inline-end">
-																			<InputGroupText>
-																				{limitedMileagePolicy.measureUnit}
-																			</InputGroupText>
-																		</InputGroupAddon>
-																	</InputGroup>
-																</Field>
-
-																<Field>
-																	<FieldLabel
-																		htmlFor={`overage-fee-${rateIndex}`}
-																	>
-																		Overage fee / unit
-																	</FieldLabel>
-																	<InputGroup className="h-12">
-																		<InputGroupInput
-																			id={`overage-fee-${rateIndex}`}
-																			type="number"
-																			min={0}
-																			step="0.01"
-																			value={String(
-																				limitedMileagePolicy.overageFeePerUnit,
-																			)}
-																			onChange={(event) =>
-																				updateRateAtIndex(rateIndex, {
-																					mileagePolicy: {
-																						mileageType: "Limited",
-																						limitPerDay:
-																							limitedMileagePolicy.limitPerDay,
-																						overageFeePerUnit: Number(
-																							event.target.value || 0,
-																						),
-																						measureUnit:
-																							limitedMileagePolicy.measureUnit,
-																					},
-																				})
-																			}
-																			className="h-full"
-																		/>
-																		<InputGroupAddon align="inline-end">
-																			<InputGroupText>USD</InputGroupText>
-																		</InputGroupAddon>
-																	</InputGroup>
-																</Field>
-
-																<Field>
-																	<FieldLabel>Unit</FieldLabel>
-																	<ToggleGroup
-																		type="single"
-																		value={limitedMileagePolicy.measureUnit}
-																		onValueChange={(value) => {
-																			if (!value) {
-																				return
-																			}
-																			updateRateAtIndex(rateIndex, {
-																				mileagePolicy: {
-																					mileageType: "Limited",
-																					limitPerDay:
-																						limitedMileagePolicy.limitPerDay,
-																					overageFeePerUnit:
-																						limitedMileagePolicy.overageFeePerUnit,
-																					measureUnit: value as DistanceUnit,
-																				},
-																			})
-																		}}
-																		className="flex w-full gap-2"
-																	>
-																		<ToggleGroupItem
-																			value="km"
-																			className="h-11 flex-1"
-																		>
-																			km
-																		</ToggleGroupItem>
-																		<ToggleGroupItem
-																			value="miles"
-																			className="h-11 flex-1"
-																		>
-																			miles
-																		</ToggleGroupItem>
-																	</ToggleGroup>
-																</Field>
-															</div>
-														) : null}
 
 														<div className={cn(wizardInsetClassName, "p-4")}>
 															<Field
@@ -1198,48 +1139,103 @@ export function VehicleCreateWizardDrawer({
 															>
 																<div>
 																	<FieldLabel
-																		htmlFor={`requires-deposit-${rateIndex}`}
+																		htmlFor={`limited-mileage-${rateIndex}`}
 																	>
-																		Security deposit
+																		Limited mileage
 																	</FieldLabel>
 																	<p className="text-muted-foreground mt-1 text-sm">
-																		Require an upfront deposit for this model.
+																		Default is unlimited mileage.
 																	</p>
 																</div>
 																<Switch
-																	id={`requires-deposit-${rateIndex}`}
-																	checked={rate.requiresDeposit}
+																	id={`limited-mileage-${rateIndex}`}
+																	checked={
+																		rate.mileagePolicy.mileageType === "Limited"
+																	}
 																	onCheckedChange={(checked) =>
 																		updateRateAtIndex(rateIndex, {
-																			requiresDeposit: checked,
-																			depositAmount: checked
-																				? (rate.depositAmount ?? 0)
-																				: undefined,
+																			mileagePolicy: checked
+																				? limitedMileagePolicy
+																				: { mileageType: "Unlimited" },
 																		})
 																	}
 																/>
 															</Field>
 														</div>
+													</div>
 
-														{rate.requiresDeposit ? (
+													{rate.mileagePolicy.mileageType === "Limited" ? (
+														<div
+															className={cn(
+																wizardInsetClassName,
+																"grid gap-4 p-4 md:grid-cols-3",
+															)}
+														>
 															<Field>
 																<FieldLabel
-																	htmlFor={`deposit-amount-${rateIndex}`}
+																	htmlFor={`limit-per-day-${rateIndex}`}
 																>
-																	Deposit amount
+																	Daily limit
 																</FieldLabel>
 																<InputGroup className="h-12">
 																	<InputGroupInput
-																		id={`deposit-amount-${rateIndex}`}
+																		id={`limit-per-day-${rateIndex}`}
+																		type="number"
+																		min={1}
+																		value={String(
+																			limitedMileagePolicy.limitPerDay,
+																		)}
+																		onChange={(event) =>
+																			updateRateAtIndex(rateIndex, {
+																				mileagePolicy: {
+																					mileageType: "Limited",
+																					limitPerDay: Number(
+																						event.target.value || 1,
+																					),
+																					overageFeePerUnit:
+																						limitedMileagePolicy.overageFeePerUnit,
+																					measureUnit:
+																						limitedMileagePolicy.measureUnit,
+																				},
+																			})
+																		}
+																		className="h-full"
+																	/>
+																	<InputGroupAddon align="inline-end">
+																		<InputGroupText>
+																			{limitedMileagePolicy.measureUnit}
+																		</InputGroupText>
+																	</InputGroupAddon>
+																</InputGroup>
+															</Field>
+
+															<Field>
+																<FieldLabel
+																	htmlFor={`overage-fee-${rateIndex}`}
+																>
+																	Overage fee / unit
+																</FieldLabel>
+																<InputGroup className="h-12">
+																	<InputGroupInput
+																		id={`overage-fee-${rateIndex}`}
 																		type="number"
 																		min={0}
 																		step="0.01"
-																		value={String(rate.depositAmount ?? 0)}
+																		value={String(
+																			limitedMileagePolicy.overageFeePerUnit,
+																		)}
 																		onChange={(event) =>
 																			updateRateAtIndex(rateIndex, {
-																				depositAmount: Number(
-																					event.target.value || 0,
-																				),
+																				mileagePolicy: {
+																					mileageType: "Limited",
+																					limitPerDay:
+																						limitedMileagePolicy.limitPerDay,
+																					overageFeePerUnit: Number(
+																						event.target.value || 0,
+																					),
+																					measureUnit:
+																						limitedMileagePolicy.measureUnit,
+																				},
 																			})
 																		}
 																		className="h-full"
@@ -1249,8 +1245,111 @@ export function VehicleCreateWizardDrawer({
 																	</InputGroupAddon>
 																</InputGroup>
 															</Field>
-														) : null}
+
+															<Field>
+																<FieldLabel>Unit</FieldLabel>
+																<ToggleGroup
+																	type="single"
+																	value={limitedMileagePolicy.measureUnit}
+																	onValueChange={(value) => {
+																		if (!value) {
+																			return
+																		}
+																		updateRateAtIndex(rateIndex, {
+																			mileagePolicy: {
+																				mileageType: "Limited",
+																				limitPerDay:
+																					limitedMileagePolicy.limitPerDay,
+																				overageFeePerUnit:
+																					limitedMileagePolicy.overageFeePerUnit,
+																				measureUnit: value as DistanceUnit,
+																			},
+																		})
+																	}}
+																	className={wizardToggleGroupClassName}
+																>
+																	<ToggleGroupItem
+																		value="km"
+																		className={wizardToggleGroupItemClassName}
+																	>
+																		<WizardToggleButtonContent
+																			label="km"
+																			icon={distanceUnitIcons.km}
+																		/>
+																	</ToggleGroupItem>
+																	<ToggleGroupItem
+																		value="miles"
+																		className={wizardToggleGroupItemClassName}
+																	>
+																		<WizardToggleButtonContent
+																			label="miles"
+																			icon={distanceUnitIcons.miles}
+																		/>
+																	</ToggleGroupItem>
+																</ToggleGroup>
+															</Field>
+														</div>
+													) : null}
+
+													<div className={cn(wizardInsetClassName, "p-4")}>
+														<Field
+															orientation="horizontal"
+															className="items-center justify-between gap-4"
+														>
+															<div>
+																<FieldLabel
+																	htmlFor={`requires-deposit-${rateIndex}`}
+																>
+																	Security deposit
+																</FieldLabel>
+																<p className="text-muted-foreground mt-1 text-sm">
+																	Require an upfront deposit for this model.
+																</p>
+															</div>
+															<Switch
+																id={`requires-deposit-${rateIndex}`}
+																checked={rate.requiresDeposit}
+																onCheckedChange={(checked) =>
+																	updateRateAtIndex(rateIndex, {
+																		requiresDeposit: checked,
+																		depositAmount: checked
+																			? (rate.depositAmount ?? 0)
+																			: undefined,
+																	})
+																}
+															/>
+														</Field>
 													</div>
+
+													{rate.requiresDeposit ? (
+														<Field>
+															<FieldLabel
+																htmlFor={`deposit-amount-${rateIndex}`}
+															>
+																Deposit amount
+															</FieldLabel>
+															<InputGroup className="h-12">
+																<InputGroupInput
+																	id={`deposit-amount-${rateIndex}`}
+																	type="number"
+																	min={0}
+																	step="0.01"
+																	value={String(rate.depositAmount ?? 0)}
+																	onChange={(event) =>
+																		updateRateAtIndex(rateIndex, {
+																			depositAmount: Number(
+																				event.target.value || 0,
+																			),
+																		})
+																	}
+																	className="h-full"
+																/>
+																<InputGroupAddon align="inline-end">
+																	<InputGroupText>USD</InputGroupText>
+																</InputGroupAddon>
+															</InputGroup>
+														</Field>
+													) : null}
 												</div>
 											</div>
 										)

@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
+import { CalendarClock, ChevronDown } from "lucide-react"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/input-group"
 import {
 	AppWheelPicker,
+	AppWheelPickerColumn,
+	AppWheelPickerWrapper,
 	type WheelPickerOption,
 } from "@/components/ui/wheel-picker"
 import type { VehicleColor } from "@/features/vehicles"
@@ -270,6 +272,244 @@ export function ColorDrawerInput({
 							)
 						})}
 					</div>
+				</div>
+			</ResponsivePickerShell>
+		</>
+	)
+}
+
+type DrawerDateInputProps = {
+	value?: string
+	placeholder: string
+	drawerTitle: string
+	drawerDescription?: string
+	onValueChange: (value: string) => void
+	disabled?: boolean
+}
+
+function padNumber(value: number) {
+	return value.toString().padStart(2, "0")
+}
+
+function parseDateValue(value?: string) {
+	if (!value) {
+		return null
+	}
+
+	const [year, month, day] = value.split("-").map(Number)
+	if (!year || !month || !day) {
+		return null
+	}
+
+	const parsed = new Date(year, month - 1, day, 12, 0, 0, 0)
+	if (Number.isNaN(parsed.getTime())) {
+		return null
+	}
+
+	return toDateValue(parsed) === value ? parsed : null
+}
+
+function toDateValue(date: Date) {
+	return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(
+		date.getDate(),
+	)}`
+}
+
+function getDaysInMonth(year: number, month: number) {
+	return new Date(year, month, 0).getDate()
+}
+
+function buildYearOptions(referenceYear: number) {
+	return Array.from({ length: 21 }, (_, index) => {
+		const value = referenceYear - 10 + index
+
+		return {
+			value,
+			label: String(value),
+		}
+	}) satisfies WheelPickerOption<number>[]
+}
+
+function buildMonthOptions() {
+	return Array.from({ length: 12 }, (_, index) => {
+		const value = index + 1
+
+		return {
+			value,
+			label: new Date(2024, index, 1).toLocaleDateString("en-AU", {
+				month: "short",
+			}),
+		}
+	}) satisfies WheelPickerOption<number>[]
+}
+
+function buildDayOptions(year: number, month: number) {
+	return Array.from({ length: getDaysInMonth(year, month) }, (_, index) => {
+		const value = index + 1
+
+		return {
+			value,
+			label: String(value),
+		}
+	}) satisfies WheelPickerOption<number>[]
+}
+
+function toDateValueFromParts(year: number, month: number, day: number) {
+	return `${year}-${padNumber(month)}-${padNumber(day)}`
+}
+
+function formatDateDisplayValue(value?: string) {
+	const parsed = parseDateValue(value)
+	if (!parsed) {
+		return ""
+	}
+
+	return parsed.toLocaleDateString("en-AU", {
+		dateStyle: "medium",
+	})
+}
+
+export function DrawerDateInput({
+	value,
+	placeholder,
+	drawerTitle,
+	drawerDescription = "Choose a date using the wheel selector.",
+	onValueChange,
+	disabled = false,
+}: DrawerDateInputProps) {
+	const [isOpen, setIsOpen] = useState(false)
+	const anchorDate = useMemo(() => parseDateValue(value) ?? new Date(), [value])
+	const currentYear = useMemo(() => new Date().getFullYear(), [])
+	const yearOptions = useMemo(
+		() => buildYearOptions(currentYear),
+		[currentYear],
+	)
+	const monthOptions = useMemo(() => buildMonthOptions(), [])
+	const resolvedYear =
+		yearOptions.find((option) => option.value === anchorDate.getFullYear())
+			?.value ??
+		yearOptions[10]?.value ??
+		anchorDate.getFullYear()
+	const resolvedMonth =
+		monthOptions.find((option) => option.value === anchorDate.getMonth() + 1)
+			?.value ?? 1
+	const resolvedDay = Math.min(
+		anchorDate.getDate(),
+		getDaysInMonth(resolvedYear, resolvedMonth),
+	)
+	const [pendingYear, setPendingYear] = useState(resolvedYear)
+	const [pendingMonth, setPendingMonth] = useState(resolvedMonth)
+	const [pendingDay, setPendingDay] = useState(resolvedDay)
+	const dayOptions = useMemo(
+		() => buildDayOptions(pendingYear, pendingMonth),
+		[pendingYear, pendingMonth],
+	)
+	const safePendingDay = Math.min(
+		pendingDay,
+		dayOptions[dayOptions.length - 1]?.value ?? 1,
+	)
+
+	useEffect(() => {
+		if (!isOpen) {
+			setPendingYear(resolvedYear)
+			setPendingMonth(resolvedMonth)
+			setPendingDay(resolvedDay)
+		}
+	}, [isOpen, resolvedDay, resolvedMonth, resolvedYear])
+
+	useEffect(() => {
+		if (pendingDay !== safePendingDay) {
+			setPendingDay(safePendingDay)
+		}
+	}, [pendingDay, safePendingDay])
+
+	return (
+		<>
+			<InputGroup className="h-12" disabled={disabled}>
+				<InputGroupAddon align="inline-start">
+					<InputGroupButton
+						size="icon-sm"
+						onClick={() => {
+							if (!disabled) {
+								setIsOpen(true)
+							}
+						}}
+						disabled={disabled}
+					>
+						<CalendarClock className="size-4" />
+						<span className="sr-only">Open date selector</span>
+					</InputGroupButton>
+				</InputGroupAddon>
+				<InputGroupInput
+					readOnly
+					value={formatDateDisplayValue(value)}
+					placeholder={placeholder}
+					onClick={() => {
+						if (!disabled) {
+							setIsOpen(true)
+						}
+					}}
+					className="h-full cursor-pointer"
+					disabled={disabled}
+				/>
+				<InputGroupAddon align="inline-end">
+					<InputGroupButton
+						size="icon-sm"
+						onClick={() => {
+							if (!disabled) {
+								setIsOpen(true)
+							}
+						}}
+						disabled={disabled}
+					>
+						<ChevronDown className="size-4" />
+						<span className="sr-only">Open date selector</span>
+					</InputGroupButton>
+				</InputGroupAddon>
+			</InputGroup>
+
+			<ResponsivePickerShell
+				open={isOpen}
+				onOpenChange={setIsOpen}
+				title={drawerTitle}
+			>
+				<div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
+					<p className="text-sm text-muted-foreground">{drawerDescription}</p>
+					<AppWheelPickerWrapper className="rounded-3xl p-4">
+						<AppWheelPickerColumn
+							value={pendingYear}
+							onValueChange={setPendingYear}
+							options={yearOptions}
+							visibleCount={18}
+							optionItemHeight={44}
+						/>
+						<AppWheelPickerColumn
+							value={pendingMonth}
+							onValueChange={setPendingMonth}
+							options={monthOptions}
+							visibleCount={18}
+							optionItemHeight={44}
+						/>
+						<AppWheelPickerColumn
+							value={safePendingDay}
+							onValueChange={setPendingDay}
+							options={dayOptions}
+							visibleCount={18}
+							optionItemHeight={44}
+						/>
+					</AppWheelPickerWrapper>
+					<Button
+						type="button"
+						className="h-12 w-full"
+						onClick={() => {
+							onValueChange(
+								toDateValueFromParts(pendingYear, pendingMonth, safePendingDay),
+							)
+							setIsOpen(false)
+						}}
+					>
+						Confirm date
+					</Button>
 				</div>
 			</ResponsivePickerShell>
 		</>
