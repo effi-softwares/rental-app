@@ -1,17 +1,11 @@
 "use client"
 
 import {
-	Camera,
-	CarFront,
 	CheckCircle2,
 	Circle,
-	ClipboardList,
 	LoaderCircle,
-	ShieldCheck,
-	Sparkles,
 } from "lucide-react"
 
-import { MediaImage } from "@/components/media/media-image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,8 +45,8 @@ import type {
 	VehicleStatus,
 } from "@/features/vehicles"
 import {
-	completedStepCardClassName,
 	completedStepIndicatorClassName,
+	feedbackMessageClassName,
 	statusTextClassName,
 } from "@/lib/theme-styles"
 import { cn } from "@/lib/utils"
@@ -79,6 +73,8 @@ type ImagePreviewGroup = {
 type VehicleCreateWizardDrawerProps = {
 	open: boolean
 	onOpenChange: (open: boolean) => void
+	title: string
+	description: string
 	formError: string | null
 	drawerStep: number
 	steps: readonly VehicleCreateWizardStep[]
@@ -106,7 +102,9 @@ type VehicleCreateWizardDrawerProps = {
 	uploadedImageCount: number
 	uploadingGroup: VehicleImageGroupKey | null
 	uploadProgressByFile: Record<string, number>
-	createVehiclePending: boolean
+	submitPending: boolean
+	submitLabel: string
+	submitPendingLabel: string
 	uploadImagesPending: boolean
 	onPreviousStep: () => void
 	onNextStep: () => void
@@ -129,240 +127,45 @@ type VehicleCreateWizardDrawerProps = {
 	onRemoveRate: (rateIndex: number) => void
 }
 
-const stepDetails: Array<{
-	title: string
-	description: string
-	icon: typeof CarFront
-}> = [
-	{
-		title: "Identity and position",
-		description:
-			"Frame the vehicle the same way a renter would see it first: brand, model, class, and registration identity.",
-		icon: CarFront,
-	},
-	{
-		title: "Front image capture",
-		description:
-			"Lead with the strongest exterior angle so the catalog feels more like product merchandising than record keeping.",
-		icon: Camera,
-	},
-	{
-		title: "Rear image capture",
-		description:
-			"Round out the outside view with rear coverage that supports trust, condition, and listing quality.",
-		icon: Camera,
-	},
-	{
-		title: "Interior image capture",
-		description:
-			"Show the cabin experience clearly so renters understand comfort, condition, and layout before booking.",
-		icon: Camera,
-	},
-	{
-		title: "Core specifications",
-		description:
-			"Capture the spec details renters care about when comparing vehicles: drivetrain, transmission, capacity, and comfort features.",
-		icon: Sparkles,
-	},
-	{
-		title: "Operations readiness",
-		description:
-			"Set operational status and compliance dates so the vehicle is catalog-ready and safe to schedule.",
-		icon: ShieldCheck,
-	},
-	{
-		title: "Pricing models",
-		description:
-			"Make the monthly rate primary, then add only the pricing models that support your rental strategy.",
-		icon: ClipboardList,
-	},
-] as const
+const wizardSurfaceClassName =
+	"rounded-2xl border border-border bg-background shadow-xs"
 
-function StepCard({
+const wizardInsetClassName =
+	"rounded-2xl border border-border bg-background shadow-xs"
+
+function StepRailItem({
 	index,
-	title,
-	description,
 	active,
 	completed,
+	isLast,
 }: {
 	index: number
-	title: string
-	description: string
 	active: boolean
 	completed: boolean
+	isLast: boolean
 }) {
 	return (
-		<div
-			className={cn(
-				"min-w-[220px] rounded-[26px] border px-4 py-4 transition md:min-w-0",
-				active && "border-primary bg-primary/[0.08] shadow-sm",
-				completed && completedStepCardClassName,
-			)}
-		>
-			<div className="flex items-center gap-3">
+		<div className="flex items-center gap-2">
+			<div
+				className={cn(
+					"flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-foreground",
+					completed && completedStepIndicatorClassName,
+					active &&
+						!completed &&
+						"border-primary bg-primary text-primary-foreground",
+				)}
+			>
+				{completed ? <CheckCircle2 className="size-3.5" /> : index + 1}
+			</div>
+			{!isLast ? (
 				<div
 					className={cn(
-						"flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
-						completed && completedStepIndicatorClassName,
-						active &&
-							!completed &&
-							"border-primary bg-primary text-primary-foreground",
+						"h-px w-8 shrink-0 bg-border sm:w-10",
+						completed && "bg-emerald-500/40",
+						active && !completed && "bg-primary/30",
 					)}
-				>
-					{completed ? <CheckCircle2 className="size-4" /> : index + 1}
-				</div>
-				<div className="space-y-0.5">
-					<p className="text-sm font-semibold">{title}</p>
-					<p className="text-muted-foreground text-xs">{description}</p>
-				</div>
-			</div>
-		</div>
-	)
-}
-
-function StepIntroCard({
-	title,
-	description,
-	icon: Icon,
-	badge,
-}: {
-	title: string
-	description: string
-	icon: typeof CarFront
-	badge?: string
-}) {
-	return (
-		<div className="rounded-[28px] border bg-background/88 p-5 sm:p-6">
-			<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-				<div className="flex items-start gap-4">
-					<div className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-2xl border border-primary/15">
-						<Icon className="size-5" />
-					</div>
-					<div>
-						<p className="text-xl font-semibold">{title}</p>
-						<p className="text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed">
-							{description}
-						</p>
-					</div>
-				</div>
-				{badge ? (
-					<Badge className="rounded-full px-3 py-1.5 text-xs">{badge}</Badge>
-				) : null}
-			</div>
-		</div>
-	)
-}
-
-function ChecklistCard({
-	title,
-	items,
-	className,
-}: {
-	title: string
-	items: string[]
-	className?: string
-}) {
-	return (
-		<div
-			className={cn(
-				"rounded-[28px] border bg-background/90 p-5 sm:p-6",
-				className,
-			)}
-		>
-			<p className="text-sm font-semibold">{title}</p>
-			<div className="mt-4 space-y-3">
-				{items.map((item) => (
-					<div key={item} className="flex items-start gap-3">
-						<CheckCircle2 className="text-primary mt-0.5 size-4 shrink-0" />
-						<p className="text-muted-foreground text-sm leading-relaxed">
-							{item}
-						</p>
-					</div>
-				))}
-			</div>
-		</div>
-	)
-}
-
-function formatVehicleHeading(
-	formValues: VehicleFormValues,
-	brandOptions: DrawerOption[],
-	modelOptions: DrawerOption[],
-) {
-	const brandLabel =
-		brandOptions.find((option) => option.value === formValues.identity.brandId)
-			?.label ?? "Brand"
-	const modelLabel =
-		modelOptions.find((option) => option.value === formValues.identity.modelId)
-			?.label ?? "Model"
-
-	return `${formValues.identity.year} ${brandLabel} ${modelLabel}`
-}
-
-function IdentitySummaryCard({
-	formValues,
-	brandOptions,
-	modelOptions,
-	vehicleClassOptions,
-	bodyTypeOptions,
-}: {
-	formValues: VehicleFormValues
-	brandOptions: DrawerOption[]
-	modelOptions: DrawerOption[]
-	vehicleClassOptions: DrawerOption[]
-	bodyTypeOptions: DrawerOption[]
-}) {
-	const vehicleClassLabel =
-		vehicleClassOptions.find(
-			(option) =>
-				option.value === (formValues.identity.vehicleClassId ?? "none"),
-		)?.label ?? "No class yet"
-	const bodyTypeLabel =
-		bodyTypeOptions.find(
-			(option) => option.value === (formValues.identity.bodyTypeId ?? "none"),
-		)?.label ?? "No body type"
-
-	return (
-		<div className="space-y-5 rounded-[28px] border bg-background/95 p-5 sm:p-6">
-			<div>
-				<p className="text-sm font-semibold">Draft snapshot</p>
-				<p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-					The create flow keeps a live summary so the person adding the vehicle
-					can sanity-check the listing before moving into images and rates.
-				</p>
-			</div>
-
-			<div className="rounded-[24px] border bg-muted/20 p-4">
-				<p className="text-lg font-semibold">
-					{formatVehicleHeading(formValues, brandOptions, modelOptions)}
-				</p>
-				<p className="text-muted-foreground mt-1 text-sm">
-					{formValues.identity.licensePlate || "License plate not added yet"}
-				</p>
-			</div>
-
-			<div className="grid gap-3 text-sm sm:grid-cols-2">
-				<div className="rounded-2xl border bg-background/80 p-3">
-					<p className="text-muted-foreground text-xs">Vehicle class</p>
-					<p className="mt-1 font-medium">{vehicleClassLabel}</p>
-				</div>
-				<div className="rounded-2xl border bg-background/80 p-3">
-					<p className="text-muted-foreground text-xs">Body type</p>
-					<p className="mt-1 font-medium">{bodyTypeLabel}</p>
-				</div>
-				<div className="rounded-2xl border bg-background/80 p-3">
-					<p className="text-muted-foreground text-xs">VIN</p>
-					<p className="mt-1 font-medium">
-						{formValues.identity.vin || "Pending"}
-					</p>
-				</div>
-				<div className="rounded-2xl border bg-background/80 p-3">
-					<p className="text-muted-foreground text-xs">Condition</p>
-					<p className="mt-1 font-medium">
-						{formValues.identity.isBrandNew ? "Brand new" : "Used vehicle"}
-					</p>
-				</div>
-			</div>
+				/>
+			) : null}
 		</div>
 	)
 }
@@ -381,7 +184,7 @@ function ImageProgressCard({
 	uploadImagesPending: boolean
 }) {
 	return (
-		<div className="space-y-5 rounded-[28px] border bg-background/95 p-5 sm:p-6">
+		<div className={cn(wizardSurfaceClassName, "space-y-5 p-5 sm:p-6")}>
 			<div className="flex items-center justify-between gap-3">
 				<div>
 					<p className="text-sm font-semibold">Image progress</p>
@@ -401,13 +204,7 @@ function ImageProgressCard({
 					return (
 						<div
 							key={group.key}
-							className={cn(
-								"rounded-2xl border px-4 py-3",
-								isActive && "border-primary/30 bg-primary/[0.06]",
-								complete &&
-									!isActive &&
-									"border-emerald-500/25 bg-emerald-500/10",
-							)}
+							className={cn(wizardInsetClassName, "px-4 py-3")}
 						>
 							<div className="flex items-center justify-between gap-3">
 								<div>
@@ -437,47 +234,6 @@ function ImageProgressCard({
 					)
 				})}
 			</div>
-
-			<div className="space-y-2">
-				<p className="text-sm font-medium">Preview strip</p>
-				<div className="grid grid-cols-3 gap-3">
-					{imagePreviewGroups.map((group) => {
-						const preview = group.assets[0]
-						return (
-							<div
-								key={`${group.key}-preview`}
-								className="rounded-2xl border bg-muted/20 p-2"
-							>
-								<div className="bg-muted/40 relative aspect-[4/3] overflow-hidden rounded-xl">
-									{preview ? (
-										<MediaImage
-											asset={{
-												id: preview.assetId,
-												deliveryUrl: preview.deliveryUrl,
-												visibility: "private",
-												blurDataUrl: preview.blurDataUrl,
-												originalFileName: `${group.title}-${preview.assetId}`,
-												contentType: "image/jpeg",
-											}}
-											alt={group.title}
-											fill
-											sizes="(min-width: 1280px) 10vw, 24vw"
-											className="h-full w-full object-cover"
-										/>
-									) : (
-										<div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-											No image
-										</div>
-									)}
-								</div>
-								<p className="mt-2 truncate text-xs font-medium">
-									{group.title}
-								</p>
-							</div>
-						)
-					})}
-				</div>
-			</div>
 		</div>
 	)
 }
@@ -485,6 +241,8 @@ function ImageProgressCard({
 export function VehicleCreateWizardDrawer({
 	open,
 	onOpenChange,
+	title,
+	description,
 	formError,
 	drawerStep,
 	steps,
@@ -512,7 +270,9 @@ export function VehicleCreateWizardDrawer({
 	uploadedImageCount,
 	uploadingGroup,
 	uploadProgressByFile,
-	createVehiclePending,
+	submitPending,
+	submitLabel,
+	submitPendingLabel,
 	uploadImagesPending,
 	onPreviousStep,
 	onNextStep,
@@ -530,43 +290,30 @@ export function VehicleCreateWizardDrawer({
 	onRemoveRate,
 }: VehicleCreateWizardDrawerProps) {
 	const totalDrawerSteps = steps.length
-	const stepMeta = stepDetails[drawerStep] ?? stepDetails[0]
-	const vehicleHeading = formatVehicleHeading(
-		formValues,
-		brandOptions,
-		modelOptions,
-	)
-	const identityBadge = formValues.identity.licensePlate
-		? `${vehicleHeading} • ${formValues.identity.licensePlate}`
-		: vehicleHeading
 
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange}>
-			<DrawerContent
-				fullHeight
-				className="overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_28%),linear-gradient(to_bottom,_rgba(248,250,252,0.96),_rgba(255,255,255,0.98))]"
-			>
-				<div className="shrink-0 border-b bg-background/90 backdrop-blur-sm">
-					<DrawerHeader className="mx-auto w-full max-w-[1560px] px-4 pb-4 pt-5 text-left sm:px-6 lg:px-8">
-						<DrawerTitle className="text-2xl font-semibold tracking-tight">
-							Add vehicle to catalog
-						</DrawerTitle>
-						<DrawerDescription className="max-w-3xl text-sm">
-							Product-style vehicle setup with staged image capture, cleaner
-							spec entry, and pricing configuration that feels closer to a
-							curated catalog flow than a back-office form.
-						</DrawerDescription>
+			<DrawerContent fullHeight className="overflow-hidden bg-sidebar">
+				<div className="shrink-0 border-b bg-sidebar">
+					<DrawerHeader className="mx-auto w-full max-w-7xl px-4 pb-3 pt-4 text-left sm:px-6 lg:px-8">
+						<div className="min-w-0 space-y-2">
+								<DrawerTitle className="text-xl font-semibold tracking-tight">
+									{title}
+								</DrawerTitle>
+							<DrawerDescription className="max-w-3xl text-xs sm:text-sm">
+								{description}
+							</DrawerDescription>
+						</div>
 					</DrawerHeader>
-					<div className="mx-auto w-full max-w-[1560px] px-4 pb-5 sm:px-6 lg:px-8">
-						<div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-7 md:overflow-visible">
+					<div className="mx-auto w-full max-w-7xl mt-6 mb-3 px-4 pb-4 sm:px-6 lg:px-8">
+						<div className="flex items-center overflow-x-auto pb-1">
 							{steps.map((item, index) => (
-								<StepCard
+								<StepRailItem
 									key={item.title}
 									index={index}
-									title={item.title}
-									description={item.description}
 									active={drawerStep === index}
 									completed={index < drawerStep}
+									isLast={index === steps.length - 1}
 								/>
 							))}
 						</div>
@@ -574,24 +321,20 @@ export function VehicleCreateWizardDrawer({
 				</div>
 
 				<div className="min-h-0 flex-1 overflow-y-auto">
-					<div className="mx-auto flex w-full max-w-[1560px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+					<div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
 						{formError ? (
-							<p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-								{formError}
-							</p>
+							<p className={feedbackMessageClassName("danger")}>{formError}</p>
 						) : null}
 
 						{drawerStep === 0 ? (
 							<FieldGroup className="space-y-6">
-								<StepIntroCard
-									title={stepMeta.title}
-									description={stepMeta.description}
-									icon={stepMeta.icon}
-									badge={identityBadge}
-								/>
-
-								<div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
-									<div className="space-y-6 rounded-[28px] border bg-background/90 p-5 sm:p-6">
+								<div className="">
+									<div
+										className={cn(
+											wizardSurfaceClassName,
+											"space-y-6 p-5 sm:p-6",
+										)}
+									>
 										<div>
 											<p className="text-sm font-semibold">Vehicle identity</p>
 											<p className="text-muted-foreground mt-1 text-sm leading-relaxed">
@@ -722,7 +465,7 @@ export function VehicleCreateWizardDrawer({
 											</Field>
 										</div>
 
-										<div className="rounded-[24px] border bg-muted/20 p-4">
+										<div className={cn(wizardInsetClassName, "p-4")}>
 											<Field
 												orientation="horizontal"
 												className="items-center justify-between gap-4"
@@ -746,39 +489,19 @@ export function VehicleCreateWizardDrawer({
 											</Field>
 										</div>
 									</div>
-
-									<div className="space-y-6">
-										<IdentitySummaryCard
-											formValues={formValues}
-											brandOptions={brandOptions}
-											modelOptions={modelOptions}
-											vehicleClassOptions={vehicleClassOptions}
-											bodyTypeOptions={bodyTypeOptions}
-										/>
-										<ChecklistCard
-											title="What this step sets up"
-											items={[
-												"Searchability in vehicle selection and rental checkout.",
-												"Catalog labels used across listings, details, and pricing.",
-												"Registration identity before images and rate setup.",
-											]}
-										/>
-									</div>
 								</div>
 							</FieldGroup>
 						) : null}
 
 						{drawerStep >= 1 && drawerStep <= 3 && activeImageGroup ? (
 							<FieldGroup className="space-y-6">
-								<StepIntroCard
-									title={stepMeta.title}
-									description={stepMeta.description}
-									icon={stepMeta.icon}
-									badge={`${uploadedImageCount} images uploaded`}
-								/>
-
 								<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-									<div className="space-y-6 rounded-[28px] border bg-background/90 p-5 sm:p-6">
+									<div
+										className={cn(
+											wizardSurfaceClassName,
+											"space-y-6 p-5 sm:p-6",
+										)}
+									>
 										<div>
 											<p className="text-sm font-semibold">
 												{imageGroupLabels[activeImageGroup].title}
@@ -823,14 +546,6 @@ export function VehicleCreateWizardDrawer({
 											uploadedImageCount={uploadedImageCount}
 											uploadImagesPending={uploadImagesPending}
 										/>
-										<ChecklistCard
-											title="Capture reminders"
-											items={[
-												"Use clean, evenly lit photos that feel customer-ready.",
-												"Cover enough angles to support trust during rental selection.",
-												"Each image gets a blur placeholder before you move ahead.",
-											]}
-										/>
 									</div>
 								</div>
 							</FieldGroup>
@@ -838,16 +553,14 @@ export function VehicleCreateWizardDrawer({
 
 						{drawerStep === 4 ? (
 							<FieldGroup className="space-y-6">
-								<StepIntroCard
-									title={stepMeta.title}
-									description={stepMeta.description}
-									icon={stepMeta.icon}
-									badge={`${formValues.specs.seats} seats • ${formValues.specs.doors} doors`}
-								/>
-
 								<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
 									<div className="space-y-6">
-										<div className="space-y-5 rounded-[28px] border bg-background/90 p-5 sm:p-6">
+										<div
+											className={cn(
+												wizardSurfaceClassName,
+												"space-y-5 p-5 sm:p-6",
+											)}
+										>
 											<div>
 												<p className="text-sm font-semibold">
 													Powertrain setup
@@ -933,7 +646,12 @@ export function VehicleCreateWizardDrawer({
 											</Field>
 										</div>
 
-										<div className="space-y-5 rounded-[28px] border bg-background/90 p-5 sm:p-6">
+										<div
+											className={cn(
+												wizardSurfaceClassName,
+												"space-y-5 p-5 sm:p-6",
+											)}
+										>
 											<div>
 												<p className="text-sm font-semibold">Cabin capacity</p>
 												<p className="text-muted-foreground mt-1 text-sm">
@@ -984,7 +702,12 @@ export function VehicleCreateWizardDrawer({
 									</div>
 
 									<div className="space-y-6">
-										<div className="space-y-5 rounded-[28px] border bg-background/95 p-5 sm:p-6">
+										<div
+											className={cn(
+												wizardSurfaceClassName,
+												"space-y-5 p-5 sm:p-6",
+											)}
+										>
 											<div>
 												<p className="text-sm font-semibold">
 													Comfort features
@@ -1023,7 +746,7 @@ export function VehicleCreateWizardDrawer({
 												].map((feature) => (
 													<div
 														key={feature.key}
-														className="rounded-2xl border bg-background/80 p-4"
+														className={cn(wizardInsetClassName, "p-4")}
 													>
 														<Field
 															orientation="horizontal"
@@ -1049,14 +772,6 @@ export function VehicleCreateWizardDrawer({
 												))}
 											</div>
 										</div>
-										<ChecklistCard
-											title="Spec quality bar"
-											items={[
-												"Use spec values that help renters compare quickly.",
-												"Keep capacity honest so handover expectations stay aligned.",
-												"Feature toggles should reflect what is actually available.",
-											]}
-										/>
 									</div>
 								</div>
 							</FieldGroup>
@@ -1064,16 +779,13 @@ export function VehicleCreateWizardDrawer({
 
 						{drawerStep === 5 ? (
 							<FieldGroup className="space-y-6">
-								<StepIntroCard
-									title={stepMeta.title}
-									description={stepMeta.description}
-									icon={stepMeta.icon}
-									badge={formValues.operations.status}
-								/>
-
-								<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
 									<div className="space-y-6">
-										<div className="space-y-5 rounded-[28px] border bg-background/90 p-5 sm:p-6">
+										<div
+											className={cn(
+												wizardSurfaceClassName,
+												"space-y-5 p-5 sm:p-6",
+											)}
+										>
 											<div>
 												<p className="text-sm font-semibold">Fleet status</p>
 												<p className="text-muted-foreground mt-1 text-sm">
@@ -1110,7 +822,12 @@ export function VehicleCreateWizardDrawer({
 											</Field>
 										</div>
 
-										<div className="space-y-5 rounded-[28px] border bg-background/90 p-5 sm:p-6">
+										<div
+											className={cn(
+												wizardSurfaceClassName,
+												"space-y-5 p-5 sm:p-6",
+											)}
+										>
 											<div>
 												<p className="text-sm font-semibold">
 													Compliance dates
@@ -1159,7 +876,12 @@ export function VehicleCreateWizardDrawer({
 									</div>
 
 									<div className="space-y-6">
-										<div className="space-y-5 rounded-[28px] border bg-background/95 p-5 sm:p-6">
+										<div
+											className={cn(
+												wizardSurfaceClassName,
+												"space-y-5 p-5 sm:p-6",
+											)}
+										>
 											<div>
 												<p className="text-sm font-semibold">
 													Insurance record
@@ -1185,28 +907,12 @@ export function VehicleCreateWizardDrawer({
 												/>
 											</Field>
 										</div>
-										<ChecklistCard
-											title="Operations readiness"
-											items={[
-												"Status should mirror whether the vehicle can be rented now.",
-												"Expiry dates must reflect compliance, not estimate.",
-												"Policy reference should match the latest insurer record.",
-											]}
-										/>
 									</div>
-								</div>
 							</FieldGroup>
 						) : null}
 
 						{drawerStep === 6 ? (
 							<FieldGroup className="space-y-6">
-								<StepIntroCard
-									title={stepMeta.title}
-									description={stepMeta.description}
-									icon={stepMeta.icon}
-									badge={`${rateEntries.length} pricing models`}
-								/>
-
 								<div className="space-y-6">
 									{rateEntries.map((rate, rateIndex) => {
 										const limitedMileagePolicy =
@@ -1231,12 +937,7 @@ export function VehicleCreateWizardDrawer({
 										return (
 											<div
 												key={`${rate.pricingModel}-${rateIndex}`}
-												className={cn(
-													"rounded-[28px] border p-5 sm:p-6",
-													isMonthlyPrimary
-														? "border-primary/30 bg-primary/[0.05]"
-														: "bg-background/92",
-												)}
+												className={cn(wizardSurfaceClassName, "p-5 sm:p-6")}
 											>
 												<div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
 													<div className="space-y-4">
@@ -1336,7 +1037,7 @@ export function VehicleCreateWizardDrawer({
 																</InputGroup>
 															</Field>
 
-															<div className="rounded-[24px] border bg-background/80 p-4">
+															<div className={cn(wizardInsetClassName, "p-4")}>
 																<Field
 																	orientation="horizontal"
 																	className="items-center justify-between gap-4"
@@ -1370,7 +1071,12 @@ export function VehicleCreateWizardDrawer({
 														</div>
 
 														{rate.mileagePolicy.mileageType === "Limited" ? (
-															<div className="grid gap-4 rounded-[24px] border bg-background/80 p-4 md:grid-cols-3">
+															<div
+																className={cn(
+																	wizardInsetClassName,
+																	"grid gap-4 p-4 md:grid-cols-3",
+																)}
+															>
 																<Field>
 																	<FieldLabel
 																		htmlFor={`limit-per-day-${rateIndex}`}
@@ -1485,7 +1191,7 @@ export function VehicleCreateWizardDrawer({
 															</div>
 														) : null}
 
-														<div className="rounded-[24px] border bg-background/80 p-4">
+														<div className={cn(wizardInsetClassName, "p-4")}>
 															<Field
 																orientation="horizontal"
 																className="items-center justify-between gap-4"
@@ -1550,7 +1256,9 @@ export function VehicleCreateWizardDrawer({
 										)
 									})}
 
-									<div className="rounded-[28px] border border-dashed bg-background/80 p-6 text-center">
+									<div
+										className={cn(wizardSurfaceClassName, "p-6 text-center")}
+									>
 										<p className="text-sm font-semibold">
 											Add another pricing model
 										</p>
@@ -1579,8 +1287,8 @@ export function VehicleCreateWizardDrawer({
 					</div>
 				</div>
 
-				<DrawerFooter className="shrink-0 border-t bg-background/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8">
-					<div className="mx-auto flex w-full max-w-[1560px] flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<DrawerFooter className="shrink-0 border-t bg-sidebar px-4 py-4 sm:px-6 lg:px-8">
+					<div className="mx-auto flex w-full max-w-7xl flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<Button
 							type="button"
 							variant="outline"
@@ -1592,13 +1300,13 @@ export function VehicleCreateWizardDrawer({
 								}
 								onPreviousStep()
 							}}
-							disabled={createVehiclePending || uploadImagesPending}
+							disabled={submitPending || uploadImagesPending}
 						>
 							{drawerStep === 0 ? "Close" : "Back"}
 						</Button>
 
 						<div className="flex items-center gap-3">
-							<p className="hidden text-sm text-muted-foreground md:block">
+							<p className="hidden rounded-full border border-border/70 bg-muted/30 px-3 py-1 text-sm text-muted-foreground md:block">
 								Step {drawerStep + 1} of {totalDrawerSteps}
 							</p>
 							{drawerStep === totalDrawerSteps - 1 ? (
@@ -1606,9 +1314,9 @@ export function VehicleCreateWizardDrawer({
 									type="button"
 									className="h-12 rounded-2xl px-6"
 									onClick={onSubmitVehicle}
-									disabled={createVehiclePending || uploadImagesPending}
+									disabled={submitPending || uploadImagesPending}
 								>
-									{createVehiclePending ? "Saving..." : "Create vehicle"}
+									{submitPending ? submitPendingLabel : submitLabel}
 								</Button>
 							) : (
 								<Button
