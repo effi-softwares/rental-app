@@ -66,7 +66,6 @@ import type { VehicleSummary } from "@/features/vehicles/types/vehicle"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { resolveErrorMessage } from "@/lib/errors"
 import {
-	completedStepCardClassName,
 	completedStepIndicatorClassName,
 	statusTextClassName,
 	statusToneClassName,
@@ -716,44 +715,48 @@ function PaymentSchedulePreviewCards({
 	)
 }
 
-function StepCard({
+const rentalSurfaceClassName = "border-t border-border/60 pt-5 sm:pt-6"
+
+const rentalInsetClassName = "border-t border-border/50"
+
+const rentalColumnDividerClassName = "xl:border-l xl:border-border/60 xl:pl-6"
+
+const rentalWideColumnDividerClassName =
+	"lg:border-l lg:border-border/60 lg:pl-6"
+
+function StepRailItem({
 	index,
-	title,
-	description,
 	active,
 	completed,
+	isLast,
 }: {
 	index: number
-	title: string
-	description: string
 	active: boolean
 	completed: boolean
+	isLast: boolean
 }) {
 	return (
-		<div
-			className={cn(
-				"min-w-60 rounded-[26px] border px-4 py-4 transition md:min-w-0",
-				active && "border-primary bg-primary/8 shadow-sm",
-				completed && completedStepCardClassName,
-			)}
-		>
-			<div className="flex items-center gap-3">
+		<div className="flex items-center gap-2">
+			<div
+				className={cn(
+					"flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-foreground",
+					completed && completedStepIndicatorClassName,
+					active &&
+						!completed &&
+						"border-primary bg-primary text-primary-foreground",
+				)}
+			>
+				{completed ? <CheckCircle2 className="size-3.5" /> : index + 1}
+			</div>
+			{!isLast ? (
 				<div
 					className={cn(
-						"flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
-						completed && completedStepIndicatorClassName,
-						active &&
-							!completed &&
-							"border-primary bg-primary text-primary-foreground",
+						"h-px w-8 shrink-0 bg-border sm:w-10",
+						completed && "bg-emerald-500/40",
+						active && !completed && "bg-primary/30",
 					)}
-				>
-					{completed ? <CheckCircle2 className="size-4" /> : index + 1}
-				</div>
-				<div className="space-y-0.5">
-					<p className="text-sm font-semibold">{title}</p>
-					<p className="text-muted-foreground text-xs">{description}</p>
-				</div>
-			</div>
+				/>
+			) : null}
 		</div>
 	)
 }
@@ -778,10 +781,10 @@ function PaymentMethodCard({
 			type="button"
 			onClick={onSelect}
 			className={cn(
-				"w-full rounded-[26px] border p-4 text-left transition",
+				"w-full rounded-2xl border p-4 text-left transition",
 				selected
-					? "border-primary bg-primary/8 ring-primary/15 ring-4"
-					: "bg-background hover:border-primary/30 hover:shadow-sm",
+					? "border-primary bg-primary/6 ring-1 ring-primary/20"
+					: "bg-background hover:border-primary/30",
 			)}
 		>
 			<div className="flex items-start justify-between gap-4">
@@ -1444,32 +1447,31 @@ export function RentalAppointmentDrawer({
 		currentDetail?.rental.selectedPaymentMethodType === "au_becs_debit"
 			? currentDetail.rental.storedPaymentMethodStatus.replaceAll("_", " ")
 			: "Open setup"
+
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange}>
-			<DrawerContent
-				fullHeight
-				className="overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.08),transparent_28%),linear-gradient(to_bottom,rgba(248,250,252,0.96),rgba(255,255,255,0.98))]"
-			>
-				<div className="shrink-0 border-b bg-background/90 backdrop-blur-sm">
-					<DrawerHeader className="mx-auto w-full max-w-390 px-4 pb-4 pt-5 text-left sm:px-6 lg:px-8">
-						<DrawerTitle className="text-2xl font-semibold tracking-tight">
-							New rental checkout
-						</DrawerTitle>
-						<DrawerDescription className="max-w-3xl text-sm">
-							Client-first rental setup with bucketed pricing, payment planning,
-							and payment method setup before final agreement.
-						</DrawerDescription>
+			<DrawerContent fullHeight className="overflow-hidden bg-sidebar">
+				<div className="shrink-0 border-b bg-sidebar">
+					<DrawerHeader className="mx-auto w-full max-w-390 px-4 pb-3 pt-4 text-left sm:px-6 lg:px-8">
+						<div className="min-w-0 space-y-2">
+							<DrawerTitle className="text-xl font-semibold tracking-tight">
+								New rental checkout
+							</DrawerTitle>
+							<DrawerDescription className="max-w-3xl text-xs sm:text-sm">
+								Client-first rental setup with pricing, payment planning, and
+								agreement finalization.
+							</DrawerDescription>
+						</div>
 					</DrawerHeader>
-					<div className="mx-auto w-full max-w-390 px-4 pb-5 sm:px-6 lg:px-8">
-						<div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-6 md:overflow-visible">
+					<div className="mx-auto mt-6 mb-3 w-full max-w-390 px-4 pb-4 sm:px-6 lg:px-8">
+						<div className="flex items-center overflow-x-auto pb-1">
 							{steps.map((item, index) => (
-								<StepCard
+								<StepRailItem
 									key={item.title}
 									index={index}
-									title={item.title}
-									description={item.description}
 									active={step === index}
 									completed={index < step}
+									isLast={index === steps.length - 1}
 								/>
 							))}
 						</div>
@@ -1485,26 +1487,25 @@ export function RentalAppointmentDrawer({
 						) : null}
 
 						{step === 0 ? (
-							<FieldGroup className="space-y-5">
-								<div className="rounded-[28px] border bg-background/85 p-5 sm:p-6">
-									<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-										<div>
-											<p className="text-xl font-semibold">
-												Choose the vehicle
-											</p>
-											<p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-												Start with a vehicle card that feels more like product
-												selection than back-office setup. We keep only the
-												details that matter for checkout.
-											</p>
-										</div>
-										{selectedVehicle ? (
-											<Badge className="rounded-full px-3 py-1.5 text-xs">
-												{selectedVehicle.year} {selectedVehicle.brandName}{" "}
-												{selectedVehicle.modelName}
-											</Badge>
-										) : null}
+							<FieldGroup className="space-y-4">
+								<div
+									className={cn(
+										rentalSurfaceClassName,
+										"flex flex-col gap-2 md:flex-row md:items-end md:justify-between",
+									)}
+								>
+									<div>
+										<p className="text-sm font-semibold">Vehicle selection</p>
+										<p className="text-muted-foreground mt-1 text-sm">
+											Pick the vehicle that will anchor this rental draft.
+										</p>
 									</div>
+									{selectedVehicle ? (
+										<Badge className="rounded-full px-3 py-1.5 text-xs">
+											{selectedVehicle.year} {selectedVehicle.brandName}{" "}
+											{selectedVehicle.modelName}
+										</Badge>
+									) : null}
 								</div>
 								<RentalVehicleSelectionTable
 									vehicles={vehicles}
@@ -1523,107 +1524,113 @@ export function RentalAppointmentDrawer({
 						{step === 1 ? (
 							<FieldGroup className="space-y-6">
 								<div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_460px]">
-									<div className="space-y-5 rounded-[28px] border bg-background/85 p-5 sm:p-6">
-										<div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-											<div>
-												<p className="text-xl font-semibold">
-													Availability-first schedule
-												</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Confirm the pickup and return window before collecting
-													customer details. The schedule must be valid for this
-													vehicle or a suggested alternative.
-												</p>
-											</div>
-											{selectedVehicle ? (
-												<Badge
-													variant="outline"
-													className="rounded-full px-3 py-1"
-												>
-													{selectedVehicle.vehicleClassName ?? "Unclassified"} ·{" "}
-													{selectedVehicle.transmission}
-												</Badge>
-											) : null}
-										</div>
-
-										<div className="grid gap-4 md:grid-cols-2">
-											<Field>
-												<FieldLabel>Planned pickup</FieldLabel>
-												<RentalDateTimePicker
-													title="Planned pickup"
-													description="Choose the pickup date and time."
-													value={values.schedule.plannedStartAt}
-													onValueChange={(nextValue) =>
-														setField("schedule", {
-															...values.schedule,
-															plannedStartAt: nextValue,
-														})
-													}
-													placeholder="Select pickup"
-												/>
-											</Field>
-											<Field>
-												<FieldLabel>Planned return</FieldLabel>
-												<RentalDateTimePicker
-													title="Planned return"
-													description="Choose the planned return date and time."
-													value={values.schedule.plannedEndAt}
-													onValueChange={(nextValue) =>
-														setField("schedule", {
-															...values.schedule,
-															plannedEndAt: nextValue,
-														})
-													}
-													placeholder="Select return"
-												/>
-											</Field>
-										</div>
-
-										<div className="space-y-3 rounded-[24px] border bg-muted/20 p-4">
-											<div className="flex items-center justify-between gap-3">
+									<div className="space-y-6">
+										<div className={cn(rentalSurfaceClassName, "space-y-5")}>
+											<div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
 												<div>
 													<p className="text-sm font-semibold">
-														Alternative matching
+														Availability-first schedule
 													</p>
 													<p className="text-muted-foreground mt-1 text-sm">
-														Change how fallback vehicles are suggested for the
-														selected time window.
+														Confirm the pickup and return window before
+														collecting customer details.
 													</p>
 												</div>
-												<CalendarRange className="size-5 text-primary" />
-											</div>
-											<ToggleGroup
-												type="single"
-												variant="outline"
-												size="sm"
-												value={values.schedule.matchMode}
-												onValueChange={(value) => {
-													if (
-														availabilityMatchModes.includes(
-															value as RentalAlternativeMatchMode,
-														)
-													) {
-														setField("schedule", {
-															...values.schedule,
-															matchMode: value as RentalAlternativeMatchMode,
-														})
-													}
-												}}
-												className="grid w-full gap-2 rounded-[22px] bg-background/80 p-1 md:grid-cols-2"
-											>
-												{availabilityMatchModes.map((mode) => (
-													<ToggleGroupItem
-														key={mode}
-														value={mode}
-														className="h-11 rounded-3xl data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+												{selectedVehicle ? (
+													<Badge
+														variant="outline"
+														className="rounded-full px-3 py-1"
 													>
-														{formatAvailabilityModeLabel(mode)}
-													</ToggleGroupItem>
-												))}
-											</ToggleGroup>
+														{selectedVehicle.vehicleClassName ?? "Unclassified"}{" "}
+														· {selectedVehicle.transmission}
+													</Badge>
+												) : null}
+											</div>
+
+											<div className="grid gap-4 md:grid-cols-2">
+												<Field>
+													<FieldLabel>Planned pickup</FieldLabel>
+													<RentalDateTimePicker
+														title="Planned pickup"
+														description="Choose the pickup date and time."
+														value={values.schedule.plannedStartAt}
+														onValueChange={(nextValue) =>
+															setField("schedule", {
+																...values.schedule,
+																plannedStartAt: nextValue,
+															})
+														}
+														placeholder="Select pickup"
+													/>
+												</Field>
+												<Field>
+													<FieldLabel>Planned return</FieldLabel>
+													<RentalDateTimePicker
+														title="Planned return"
+														description="Choose the planned return date and time."
+														value={values.schedule.plannedEndAt}
+														onValueChange={(nextValue) =>
+															setField("schedule", {
+																...values.schedule,
+																plannedEndAt: nextValue,
+															})
+														}
+														placeholder="Select return"
+													/>
+												</Field>
+											</div>
+
+											<div className="space-y-3 rounded-[24px] border bg-muted/20 p-4">
+												<div className="flex items-center justify-between gap-3">
+													<div>
+														<p className="text-sm font-semibold">
+															Alternative matching
+														</p>
+														<p className="text-muted-foreground mt-1 text-sm">
+															Change how fallback vehicles are suggested for the
+															selected time window.
+														</p>
+													</div>
+													<CalendarRange className="size-5 text-primary" />
+												</div>
+												<ToggleGroup
+													type="single"
+													variant="outline"
+													size="sm"
+													value={values.schedule.matchMode}
+													onValueChange={(value) => {
+														if (
+															availabilityMatchModes.includes(
+																value as RentalAlternativeMatchMode,
+															)
+														) {
+															setField("schedule", {
+																...values.schedule,
+																matchMode: value as RentalAlternativeMatchMode,
+															})
+														}
+													}}
+													className="grid w-full gap-2 rounded-[22px] bg-background/80 p-1 md:grid-cols-2"
+												>
+													{availabilityMatchModes.map((mode) => (
+														<ToggleGroupItem
+															key={mode}
+															value={mode}
+															className="h-11 rounded-3xl data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+														>
+															{formatAvailabilityModeLabel(mode)}
+														</ToggleGroupItem>
+													))}
+												</ToggleGroup>
+											</div>
 										</div>
 
-										<div className="space-y-4 rounded-[24px] border bg-background/90 p-4">
+										<div
+											className={cn(
+												rentalInsetClassName,
+												"space-y-4 pt-5 sm:pt-6",
+											)}
+										>
 											<div className="flex items-center justify-between gap-3">
 												<div>
 													<p className="font-semibold">Availability grid</p>
@@ -1697,77 +1704,86 @@ export function RentalAppointmentDrawer({
 										</div>
 									</div>
 
-									<div className="space-y-4 rounded-[28px] border bg-background/90 p-5 sm:p-6">
-										<div className="space-y-2">
-											<p className="text-base font-semibold">
-												Selected vehicle status
-											</p>
-											<p className="text-muted-foreground text-sm">
-												The rental can only continue once this window is
-												available or you switch to an accepted alternative.
-											</p>
-										</div>
-
-										<div className="rounded-[24px] border bg-muted/20 p-4">
-											<p className="text-sm font-medium">
-												{selectedVehicle
-													? `${selectedVehicle.year} ${selectedVehicle.brandName} ${selectedVehicle.modelName}`
-													: "No vehicle selected"}
-											</p>
-											{selectedVehicle ? (
-												<p className="text-muted-foreground mt-1 text-sm">
-													{selectedVehicle.licensePlate} ·{" "}
-													{selectedVehicle.vehicleClassName ?? "Unclassified"} ·{" "}
-													{selectedVehicle.transmission}
+									<div
+										className={cn("space-y-6", rentalColumnDividerClassName)}
+									>
+										<div className={cn(rentalSurfaceClassName, "space-y-4")}>
+											<div className="space-y-2">
+												<p className="text-base font-semibold">
+													Selected vehicle status
 												</p>
-											) : null}
+												<p className="text-muted-foreground text-sm">
+													The rental can only continue once this window is
+													available or you switch to an accepted alternative.
+												</p>
+											</div>
 
-											{availabilityQuery.data ? (
-												<div className="mt-4 space-y-3">
-													<Badge
-														variant="outline"
-														className={cn(
-															"rounded-full px-3 py-1",
-															availabilityQuery.data.isAvailable
-																? statusToneClassName("success")
-																: statusToneClassName("danger"),
-														)}
-													>
-														{availabilityQuery.data.isAvailable
-															? "Available for the full period"
-															: "Unavailable for the selected period"}
-													</Badge>
-													{availabilityQuery.data.blockingReason ? (
-														<p className="text-sm text-muted-foreground">
-															{availabilityQuery.data.blockingReason}
-														</p>
-													) : null}
-													{availabilityQuery.data.nextAvailableRange ? (
-														<div className="rounded-2xl border bg-background p-3 text-sm">
-															<p className="font-medium">Next exact slot</p>
-															<p className="text-muted-foreground mt-1">
-																{formatDateTime(
-																	availabilityQuery.data.nextAvailableRange
-																		.startsAt,
-																)}{" "}
-																to{" "}
-																{formatDateTime(
-																	availabilityQuery.data.nextAvailableRange
-																		.endsAt,
-																)}
+											<div className="rounded-[24px] border bg-muted/20 p-4">
+												<p className="text-sm font-medium">
+													{selectedVehicle
+														? `${selectedVehicle.year} ${selectedVehicle.brandName} ${selectedVehicle.modelName}`
+														: "No vehicle selected"}
+												</p>
+												{selectedVehicle ? (
+													<p className="text-muted-foreground mt-1 text-sm">
+														{selectedVehicle.licensePlate} ·{" "}
+														{selectedVehicle.vehicleClassName ?? "Unclassified"}{" "}
+														· {selectedVehicle.transmission}
+													</p>
+												) : null}
+
+												{availabilityQuery.data ? (
+													<div className="mt-4 space-y-3">
+														<Badge
+															variant="outline"
+															className={cn(
+																"rounded-full px-3 py-1",
+																availabilityQuery.data.isAvailable
+																	? statusToneClassName("success")
+																	: statusToneClassName("danger"),
+															)}
+														>
+															{availabilityQuery.data.isAvailable
+																? "Available for the full period"
+																: "Unavailable for the selected period"}
+														</Badge>
+														{availabilityQuery.data.blockingReason ? (
+															<p className="text-sm text-muted-foreground">
+																{availabilityQuery.data.blockingReason}
 															</p>
-														</div>
-													) : null}
-												</div>
-											) : (
-												<p className="text-muted-foreground mt-3 text-sm">
-													Availability appears here after both dates are
-													selected.
-												</p>
-											)}
+														) : null}
+														{availabilityQuery.data.nextAvailableRange ? (
+															<div className="rounded-2xl border bg-background p-3 text-sm">
+																<p className="font-medium">Next exact slot</p>
+																<p className="text-muted-foreground mt-1">
+																	{formatDateTime(
+																		availabilityQuery.data.nextAvailableRange
+																			.startsAt,
+																	)}{" "}
+																	to{" "}
+																	{formatDateTime(
+																		availabilityQuery.data.nextAvailableRange
+																			.endsAt,
+																	)}
+																</p>
+															</div>
+														) : null}
+													</div>
+												) : (
+													<p className="text-muted-foreground mt-3 text-sm">
+														Availability appears here after both dates are
+														selected.
+													</p>
+												)}
+											</div>
 										</div>
 
-										<div className="space-y-3">
+										<div
+											className={cn(
+												rentalInsetClassName,
+												"space-y-3 pt-5 sm:pt-6",
+											)}
+										>
 											<div className="flex items-center justify-between gap-3">
 												<p className="font-semibold">Suggested alternatives</p>
 												{availabilityQuery.data ? (
@@ -1833,155 +1849,169 @@ export function RentalAppointmentDrawer({
 						{step === 2 ? (
 							<FieldGroup className="space-y-6">
 								<div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_420px]">
-									<div className="space-y-5 rounded-[28px] border bg-background/85 p-5 sm:p-6">
-										<div>
-											<p className="text-xl font-semibold">Customer details</p>
-											<p className="text-muted-foreground mt-1 text-sm">
-												Now that the vehicle and schedule are locked in, capture
-												the renter details or autofill a known customer.
-											</p>
-										</div>
-										<div className="grid gap-4 md:grid-cols-2">
-											<Field>
-												<FieldLabel>Full name</FieldLabel>
-												<Input
-													value={values.customer.fullName}
-													onChange={(event) =>
-														setManualCustomerField(
-															"fullName",
-															event.target.value,
-														)
-													}
-													className="h-12 rounded-2xl"
-												/>
-											</Field>
-											<Field>
-												<FieldLabel>Email</FieldLabel>
-												<Input
-													type="email"
-													value={values.customer.email}
-													onChange={(event) =>
-														setManualCustomerField("email", event.target.value)
-													}
-													className="h-12 rounded-2xl"
-												/>
-											</Field>
-											<Field>
-												<FieldLabel>Phone</FieldLabel>
-												<Input
-													value={values.customer.phone}
-													onChange={(event) =>
-														setManualCustomerField("phone", event.target.value)
-													}
-													className="h-12 rounded-2xl"
-												/>
-											</Field>
-											<div className="rounded-2xl border bg-muted/25 p-4">
-												<p className="text-sm font-medium">Schedule lock</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													{formatDateTime(scheduleStartIso)} to{" "}
-													{formatDateTime(scheduleEndIso)}
+									<div className="space-y-6">
+										<div className={cn(rentalSurfaceClassName, "space-y-5")}>
+											<div>
+												<p className="text-sm font-semibold">
+													Customer details
 												</p>
+												<p className="text-muted-foreground mt-1 text-sm">
+													Capture the renter details or autofill a known
+													customer now that vehicle and schedule are locked in.
+												</p>
+											</div>
+											<div className="grid gap-4 md:grid-cols-2">
+												<Field>
+													<FieldLabel>Full name</FieldLabel>
+													<Input
+														value={values.customer.fullName}
+														onChange={(event) =>
+															setManualCustomerField(
+																"fullName",
+																event.target.value,
+															)
+														}
+														className="h-12 rounded-2xl"
+													/>
+												</Field>
+												<Field>
+													<FieldLabel>Email</FieldLabel>
+													<Input
+														type="email"
+														value={values.customer.email}
+														onChange={(event) =>
+															setManualCustomerField(
+																"email",
+																event.target.value,
+															)
+														}
+														className="h-12 rounded-2xl"
+													/>
+												</Field>
+												<Field>
+													<FieldLabel>Phone</FieldLabel>
+													<Input
+														value={values.customer.phone}
+														onChange={(event) =>
+															setManualCustomerField(
+																"phone",
+																event.target.value,
+															)
+														}
+														className="h-12 rounded-2xl"
+													/>
+												</Field>
+												<div className="rounded-2xl border bg-muted/25 p-4">
+													<p className="text-sm font-medium">Schedule lock</p>
+													<p className="text-muted-foreground mt-1 text-sm">
+														{formatDateTime(scheduleStartIso)} to{" "}
+														{formatDateTime(scheduleEndIso)}
+													</p>
+												</div>
 											</div>
 										</div>
 									</div>
 
-									<div className="space-y-4 rounded-[28px] border bg-background/90 p-5 sm:p-6">
-										<div className="flex items-center justify-between gap-3">
-											<div>
-												<p className="text-base font-semibold">
-													Existing customer suggestions
-												</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Autofill a known customer to speed up booking.
-												</p>
+									<div
+										className={cn("space-y-6", rentalColumnDividerClassName)}
+									>
+										<div className={cn(rentalSurfaceClassName, "space-y-4")}>
+											<div className="flex items-center justify-between gap-3">
+												<div>
+													<p className="text-base font-semibold">
+														Existing customer suggestions
+													</p>
+													<p className="text-muted-foreground mt-1 text-sm">
+														Autofill a known customer to speed up booking.
+													</p>
+												</div>
+												{showLookupLoading ? (
+													<LoaderCircle className="size-5 animate-spin text-primary" />
+												) : (
+													<Sparkles className="size-5 text-primary" />
+												)}
 											</div>
-											{showLookupLoading ? (
-												<LoaderCircle className="size-5 animate-spin text-primary" />
+
+											{showLookupGuidance ? (
+												<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+													Enter an email or at least 7 phone digits to start
+													customer lookup.
+												</div>
+											) : showLookupSettling ? (
+												<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+													Pause typing for a moment and we will search matching
+													customers.
+												</div>
+											) : showLookupLoading ? (
+												<div className="rounded-2xl border bg-muted/30 p-4">
+													<div className="flex items-center gap-3 text-sm">
+														<LoaderCircle className="size-4 animate-spin text-primary" />
+														Checking existing customers...
+													</div>
+												</div>
+											) : showLookupError ? (
+												<div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+													Unable to check existing customers right now.
+												</div>
+											) : showLookupCandidates ? (
+												<div className="space-y-3">
+													{matchedCustomerCandidates.map((candidate) => (
+														<div
+															key={candidate.id}
+															className={cn(
+																"rounded-[24px] border p-4 transition",
+																values.customer.matchedCustomerId ===
+																	candidate.id && "border-primary bg-primary/6",
+															)}
+														>
+															<div className="flex items-start justify-between gap-4">
+																<div className="flex items-start gap-3">
+																	<div className="flex size-11 items-center justify-center rounded-2xl bg-muted font-semibold">
+																		{candidate.fullName
+																			.split(" ")
+																			.slice(0, 2)
+																			.map((part) => part.charAt(0))
+																			.join("")}
+																	</div>
+																	<div className="space-y-1">
+																		<p className="font-semibold">
+																			{candidate.fullName}
+																		</p>
+																		<p className="text-muted-foreground text-sm">
+																			{candidate.email ?? "No email"}
+																		</p>
+																		<p className="text-muted-foreground text-sm">
+																			{candidate.phone ?? "No phone"}
+																		</p>
+																	</div>
+																</div>
+																<Button
+																	type="button"
+																	size="sm"
+																	className="h-10 rounded-full px-4"
+																	onClick={() =>
+																		setField("customer", {
+																			...values.customer,
+																			fullName: candidate.fullName,
+																			email: candidate.email ?? "",
+																			phone: candidate.phone ?? "",
+																			matchedCustomerId: candidate.id,
+																		})
+																	}
+																>
+																	<WandSparkles className="size-4" />
+																	Autofill
+																</Button>
+															</div>
+														</div>
+													))}
+												</div>
 											) : (
-												<Sparkles className="size-5 text-primary" />
+												<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+													No existing customer matched this email or phone yet.
+												</div>
 											)}
 										</div>
-
-										{showLookupGuidance ? (
-											<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-												Enter an email or at least 7 phone digits to start
-												customer lookup.
-											</div>
-										) : showLookupSettling ? (
-											<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-												Pause typing for a moment and we will search matching
-												customers.
-											</div>
-										) : showLookupLoading ? (
-											<div className="rounded-2xl border bg-muted/30 p-4">
-												<div className="flex items-center gap-3 text-sm">
-													<LoaderCircle className="size-4 animate-spin text-primary" />
-													Checking existing customers...
-												</div>
-											</div>
-										) : showLookupError ? (
-											<div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-												Unable to check existing customers right now.
-											</div>
-										) : showLookupCandidates ? (
-											<div className="space-y-3">
-												{matchedCustomerCandidates.map((candidate) => (
-													<div
-														key={candidate.id}
-														className={cn(
-															"rounded-[24px] border p-4 transition",
-															values.customer.matchedCustomerId ===
-																candidate.id && "border-primary bg-primary/6",
-														)}
-													>
-														<div className="flex items-start justify-between gap-4">
-															<div className="flex items-start gap-3">
-																<div className="flex size-11 items-center justify-center rounded-2xl bg-muted font-semibold">
-																	{candidate.fullName
-																		.split(" ")
-																		.slice(0, 2)
-																		.map((part) => part.charAt(0))
-																		.join("")}
-																</div>
-																<div className="space-y-1">
-																	<p className="font-semibold">
-																		{candidate.fullName}
-																	</p>
-																	<p className="text-muted-foreground text-sm">
-																		{candidate.email ?? "No email"}
-																	</p>
-																	<p className="text-muted-foreground text-sm">
-																		{candidate.phone ?? "No phone"}
-																	</p>
-																</div>
-															</div>
-															<Button
-																type="button"
-																size="sm"
-																className="h-10 rounded-full px-4"
-																onClick={() =>
-																	setField("customer", {
-																		...values.customer,
-																		fullName: candidate.fullName,
-																		email: candidate.email ?? "",
-																		phone: candidate.phone ?? "",
-																		matchedCustomerId: candidate.id,
-																	})
-																}
-															>
-																<WandSparkles className="size-4" />
-																Autofill
-															</Button>
-														</div>
-													</div>
-												))}
-											</div>
-										) : (
-											<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-												No existing customer matched this email or phone yet.
-											</div>
-										)}
 									</div>
 								</div>
 							</FieldGroup>
@@ -1990,242 +2020,263 @@ export function RentalAppointmentDrawer({
 						{step === 3 ? (
 							<FieldGroup className="space-y-6">
 								<div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-									<div className="space-y-6 rounded-[28px] border bg-background/90 p-5 sm:p-6">
-										<div>
-											<p className="text-xl font-semibold">Pricing and plan</p>
-											<p className="text-muted-foreground mt-1 text-sm">
-												Shape the rental charge strategy on the left while the
-												quote and schedule stay visible on the right.
-											</p>
-										</div>
+									<div className="space-y-6">
+										<div className={cn(rentalSurfaceClassName, "space-y-6")}>
+											<div>
+												<p className="text-sm font-semibold">
+													Pricing and plan
+												</p>
+												<p className="text-muted-foreground mt-1 text-sm">
+													Shape the rental charge strategy on the left while the
+													quote and schedule stay visible on the right.
+												</p>
+											</div>
 
-										<div className="grid gap-4 md:grid-cols-2">
-											<Field>
-												<FieldLabel>Payment plan</FieldLabel>
-												<ToggleGroup
-													type="single"
-													variant="outline"
-													size="lg"
-													value={values.paymentPlan.kind}
-													onValueChange={(value) => {
-														if (value === "single" || value === "installment") {
-															setField("paymentPlan", {
-																...values.paymentPlan,
-																kind: value,
-																installmentInterval:
-																	value === "installment"
-																		? values.paymentPlan.installmentInterval
-																		: null,
-															})
-														}
-													}}
-													className="grid w-full grid-cols-2 gap-2 rounded-[24px] bg-muted/40 p-1"
-												>
-													<ToggleGroupItem
-														value="single"
-														className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
-													>
-														Single payment
-													</ToggleGroupItem>
-													<ToggleGroupItem
-														value="installment"
-														className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
-													>
-														Installments
-													</ToggleGroupItem>
-												</ToggleGroup>
-											</Field>
-											<Field>
-												<FieldLabel>First collection timing</FieldLabel>
-												<ToggleGroup
-													type="single"
-													variant="outline"
-													size="lg"
-													value={values.paymentPlan.firstCollectionTiming}
-													onValueChange={(value) => {
-														if (value === "setup" || value === "handover") {
-															setField("paymentPlan", {
-																...values.paymentPlan,
-																firstCollectionTiming: value,
-															})
-														}
-													}}
-													className="grid w-full grid-cols-2 gap-2 rounded-[24px] bg-muted/40 p-1"
-												>
-													<ToggleGroupItem
-														value="setup"
-														className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
-													>
-														At setup
-													</ToggleGroupItem>
-													<ToggleGroupItem
-														value="handover"
-														className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
-													>
-														At handover
-													</ToggleGroupItem>
-												</ToggleGroup>
-											</Field>
-											<Field>
-												<FieldLabel>Tax rate %</FieldLabel>
-												<Input
-													type="number"
-													value={values.pricing.taxRatePercent}
-													onChange={(event) =>
-														setField("pricing", {
-															...values.pricing,
-															taxRatePercent: Number(event.target.value || 0),
-														})
-													}
-													className="h-12 rounded-2xl"
-												/>
-											</Field>
-											<Field>
-												<FieldLabel>Discount amount</FieldLabel>
-												<Input
-													type="number"
-													min="0"
-													step="0.01"
-													value={values.pricing.discountAmount}
-													onChange={(event) =>
-														setField("pricing", {
-															...values.pricing,
-															discountAmount: Number(event.target.value || 0),
-														})
-													}
-													className="h-12 rounded-2xl"
-												/>
-											</Field>
-											<Field className="rounded-2xl border bg-muted/25 p-4">
-												<FieldLabel className="flex items-center justify-between">
-													<span>Take deposit</span>
-													<Switch
-														checked={
-															values.pricing.depositRequired ||
-															Boolean(selectedBucketRate?.requiresDeposit)
-														}
-														onCheckedChange={(checked) =>
-															setField("pricing", {
-																...values.pricing,
-																depositRequired: checked,
-															})
-														}
-														disabled={Boolean(
-															selectedBucketRate?.requiresDeposit,
-														)}
-													/>
-												</FieldLabel>
-												<FieldDescription className="mt-2">
-													{selectedBucketRate?.requiresDeposit
-														? "This rate already requires a deposit and keeps it attached to the first charge."
-														: "Optional deposit added to the first scheduled charge."}
-												</FieldDescription>
-											</Field>
-											<Field>
-												<FieldLabel>Deposit amount</FieldLabel>
-												<Input
-													type="number"
-													min="0"
-													step="0.01"
-													value={values.pricing.depositAmount}
-													onChange={(event) =>
-														setField("pricing", {
-															...values.pricing,
-															depositAmount: Number(event.target.value || 0),
-														})
-													}
-													className="h-12 rounded-2xl"
-												/>
-											</Field>
-										</div>
-
-										{values.paymentPlan.kind === "installment" ? (
-											<div className="space-y-4 rounded-[24px] border bg-muted/20 p-4">
+											<div className="grid gap-4 md:grid-cols-2">
 												<Field>
-													<FieldLabel>Installment cadence</FieldLabel>
+													<FieldLabel>Payment plan</FieldLabel>
 													<ToggleGroup
 														type="single"
 														variant="outline"
 														size="lg"
-														value={schedulePreview.installmentInterval ?? ""}
+														value={values.paymentPlan.kind}
 														onValueChange={(value) => {
-															if (value === "week" || value === "month") {
+															if (
+																value === "single" ||
+																value === "installment"
+															) {
 																setField("paymentPlan", {
 																	...values.paymentPlan,
-																	installmentInterval: value,
+																	kind: value,
+																	installmentInterval:
+																		value === "installment"
+																			? values.paymentPlan.installmentInterval
+																			: null,
 																})
 															}
 														}}
-														className="grid w-full grid-cols-2 gap-2 rounded-[24px] bg-background/70 p-1"
+														className="grid w-full grid-cols-2 gap-2 rounded-[24px] bg-muted/40 p-1"
 													>
 														<ToggleGroupItem
-															value="week"
-															className="h-12 rounded-[18px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
+															value="single"
+															className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
 														>
-															Weekly
+															Single payment
 														</ToggleGroupItem>
 														<ToggleGroupItem
-															value="month"
-															className="h-12 rounded-[18px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
+															value="installment"
+															className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
 														>
-															Monthly
+															Installments
 														</ToggleGroupItem>
 													</ToggleGroup>
+												</Field>
+												<Field>
+													<FieldLabel>First collection timing</FieldLabel>
+													<ToggleGroup
+														type="single"
+														variant="outline"
+														size="lg"
+														value={values.paymentPlan.firstCollectionTiming}
+														onValueChange={(value) => {
+															if (value === "setup" || value === "handover") {
+																setField("paymentPlan", {
+																	...values.paymentPlan,
+																	firstCollectionTiming: value,
+																})
+															}
+														}}
+														className="grid w-full grid-cols-2 gap-2 rounded-[24px] bg-muted/40 p-1"
+													>
+														<ToggleGroupItem
+															value="setup"
+															className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+														>
+															At setup
+														</ToggleGroupItem>
+														<ToggleGroupItem
+															value="handover"
+															className="h-12 rounded-[18px] data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+														>
+															At handover
+														</ToggleGroupItem>
+													</ToggleGroup>
+												</Field>
+												<Field>
+													<FieldLabel>Tax rate %</FieldLabel>
+													<Input
+														type="number"
+														value={values.pricing.taxRatePercent}
+														onChange={(event) =>
+															setField("pricing", {
+																...values.pricing,
+																taxRatePercent: Number(event.target.value || 0),
+															})
+														}
+														className="h-12 rounded-2xl"
+													/>
+												</Field>
+												<Field>
+													<FieldLabel>Discount amount</FieldLabel>
+													<Input
+														type="number"
+														min="0"
+														step="0.01"
+														value={values.pricing.discountAmount}
+														onChange={(event) =>
+															setField("pricing", {
+																...values.pricing,
+																discountAmount: Number(event.target.value || 0),
+															})
+														}
+														className="h-12 rounded-2xl"
+													/>
+												</Field>
+												<Field className="rounded-2xl border bg-muted/25 p-4">
+													<FieldLabel className="flex items-center justify-between">
+														<span>Take deposit</span>
+														<Switch
+															checked={
+																values.pricing.depositRequired ||
+																Boolean(selectedBucketRate?.requiresDeposit)
+															}
+															onCheckedChange={(checked) =>
+																setField("pricing", {
+																	...values.pricing,
+																	depositRequired: checked,
+																})
+															}
+															disabled={Boolean(
+																selectedBucketRate?.requiresDeposit,
+															)}
+														/>
+													</FieldLabel>
 													<FieldDescription className="mt-2">
-														Default cadence follows the rental duration bucket,
-														but you can override it here.
+														{selectedBucketRate?.requiresDeposit
+															? "This rate already requires a deposit and keeps it attached to the first charge."
+															: "Optional deposit added to the first scheduled charge."}
 													</FieldDescription>
 												</Field>
-												<div className="rounded-2xl border bg-background/70 p-4">
-													<p className="text-sm font-semibold">
-														Recurring billing strategy
-													</p>
-													<div className="text-muted-foreground mt-3 space-y-2 text-sm">
-														<p>
-															Cadence:{" "}
-															<span className="text-foreground">
-																{formatInstallmentIntervalLabel(
-																	schedulePreview.installmentInterval,
-																)}
-															</span>
-														</p>
-														<p>
-															First charge:{" "}
-															<span className="text-foreground">
-																{formatTimingLabel(
-																	values.paymentPlan.firstCollectionTiming,
-																)}
-															</span>
-														</p>
-														<p>
-															{describeRecurringStartTiming(
-																values.paymentPlan.firstCollectionTiming,
-															)}
-														</p>
+												<Field>
+													<FieldLabel>Deposit amount</FieldLabel>
+													<Input
+														type="number"
+														min="0"
+														step="0.01"
+														value={values.pricing.depositAmount}
+														onChange={(event) =>
+															setField("pricing", {
+																...values.pricing,
+																depositAmount: Number(event.target.value || 0),
+															})
+														}
+														className="h-12 rounded-2xl"
+													/>
+												</Field>
+											</div>
+
+											{values.paymentPlan.kind === "installment" ? (
+												<div
+													className={cn(
+														rentalInsetClassName,
+														"space-y-4 pt-5 sm:pt-6",
+													)}
+												>
+													<div className="space-y-4 rounded-[24px] border bg-muted/20 p-4">
+														<Field>
+															<FieldLabel>Installment cadence</FieldLabel>
+															<ToggleGroup
+																type="single"
+																variant="outline"
+																size="lg"
+																value={
+																	schedulePreview.installmentInterval ?? ""
+																}
+																onValueChange={(value) => {
+																	if (value === "week" || value === "month") {
+																		setField("paymentPlan", {
+																			...values.paymentPlan,
+																			installmentInterval: value,
+																		})
+																	}
+																}}
+																className="grid w-full grid-cols-2 gap-2 rounded-[24px] bg-background/70 p-1"
+															>
+																<ToggleGroupItem
+																	value="week"
+																	className="h-12 rounded-[18px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
+																>
+																	Weekly
+																</ToggleGroupItem>
+																<ToggleGroupItem
+																	value="month"
+																	className="h-12 rounded-[18px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
+																>
+																	Monthly
+																</ToggleGroupItem>
+															</ToggleGroup>
+															<FieldDescription className="mt-2">
+																Default cadence follows the rental duration
+																bucket, but you can override it here.
+															</FieldDescription>
+														</Field>
+														<div className="rounded-2xl border bg-background/70 p-4">
+															<p className="text-sm font-semibold">
+																Recurring billing strategy
+															</p>
+															<div className="text-muted-foreground mt-3 space-y-2 text-sm">
+																<p>
+																	Cadence:{" "}
+																	<span className="text-foreground">
+																		{formatInstallmentIntervalLabel(
+																			schedulePreview.installmentInterval,
+																		)}
+																	</span>
+																</p>
+																<p>
+																	First charge:{" "}
+																	<span className="text-foreground">
+																		{formatTimingLabel(
+																			values.paymentPlan.firstCollectionTiming,
+																		)}
+																	</span>
+																</p>
+																<p>
+																	{describeRecurringStartTiming(
+																		values.paymentPlan.firstCollectionTiming,
+																	)}
+																</p>
+															</div>
+														</div>
 													</div>
 												</div>
-											</div>
-										) : null}
+											) : null}
 
-										<Field>
-											<FieldLabel>Internal notes</FieldLabel>
-											<Textarea
-												value={values.pricing.notes}
-												onChange={(event) =>
-													setField("pricing", {
-														...values.pricing,
-														notes: event.target.value,
-													})
-												}
-												placeholder="Add pickup notes, deposit notes, or internal context."
-												rows={5}
-												className="rounded-2xl"
-											/>
-										</Field>
+											<Field>
+												<FieldLabel>Internal notes</FieldLabel>
+												<Textarea
+													value={values.pricing.notes}
+													onChange={(event) =>
+														setField("pricing", {
+															...values.pricing,
+															notes: event.target.value,
+														})
+													}
+													placeholder="Add pickup notes, deposit notes, or internal context."
+													rows={5}
+													className="rounded-2xl"
+												/>
+											</Field>
+										</div>
 									</div>
 
-									<div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-										<div className="rounded-[28px] border bg-background/95 p-5 sm:p-6">
+									<div
+										className={cn(
+											"space-y-6 lg:sticky lg:top-4 lg:self-start",
+											rentalWideColumnDividerClassName,
+										)}
+									>
+										<div className={cn(rentalSurfaceClassName, "space-y-4")}>
 											<div className="flex items-center justify-between gap-3">
 												<p className="text-lg font-semibold">Quote preview</p>
 												<Badge
@@ -2240,7 +2291,7 @@ export function RentalAppointmentDrawer({
 												</Badge>
 											</div>
 											{quotePreview.quote ? (
-												<div className="mt-4 space-y-4 text-sm">
+												<div className="space-y-4 text-sm">
 													<div className="grid grid-cols-2 gap-3">
 														<div className="rounded-2xl bg-muted/30 p-3">
 															<p className="text-muted-foreground text-xs uppercase">
@@ -2272,7 +2323,7 @@ export function RentalAppointmentDrawer({
 													</div>
 												</div>
 											) : (
-												<p className="text-muted-foreground mt-4 text-sm">
+												<p className="text-muted-foreground text-sm">
 													Set the rental dates to calculate pricing.
 												</p>
 											)}
@@ -2291,12 +2342,17 @@ export function RentalAppointmentDrawer({
 										) : null}
 
 										{quotePreview.quote ? (
-											<>
+											<div
+												className={cn(
+													rentalInsetClassName,
+													"space-y-3 pt-5 sm:pt-6",
+												)}
+											>
 												<QuoteLineItems
 													lineItems={quotePreview.quote.lineItems}
 													currency="AUD"
 												/>
-												<div className="space-y-3 rounded-[28px] border bg-background/95 p-5 sm:p-6">
+												<div className="space-y-3">
 													<p className="text-base font-semibold">
 														Payment schedule preview
 													</p>
@@ -2305,7 +2361,7 @@ export function RentalAppointmentDrawer({
 														currency="AUD"
 													/>
 												</div>
-											</>
+											</div>
 										) : null}
 									</div>
 								</div>
@@ -2316,97 +2372,106 @@ export function RentalAppointmentDrawer({
 							currentDetail ? (
 								<FieldGroup className="space-y-6">
 									<div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-										<div className="space-y-6 rounded-[28px] border bg-background/90 p-5 sm:p-6">
-											<div>
-												<p className="text-xl font-semibold">Payment setup</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Choose the collection method, then open the dedicated
-													setup drawer for the selected flow.
-												</p>
-											</div>
+										<div className="space-y-6">
+											<div className={cn(rentalSurfaceClassName, "space-y-6")}>
+												<div>
+													<p className="text-sm font-semibold">Payment setup</p>
+													<p className="text-muted-foreground mt-1 text-sm">
+														Choose the collection method, then open the
+														dedicated setup drawer for the selected flow.
+													</p>
+												</div>
 
-											<div className="grid gap-4 lg:grid-cols-3">
-												<PaymentMethodCard
-													title="Cash"
-													description="Record the first collection now or defer it to handover."
-													icon={<Banknote className="size-5" />}
-													selected={values.payment.methodType === "cash"}
-													readyLabel={cashSetupLabel}
-													onSelect={() => {
-														openPaymentSetup("cash")
-													}}
-												/>
-												<PaymentMethodCard
-													title="Card / POS"
-													description="Use Stripe Terminal to collect payment or save a card."
-													icon={<CreditCard className="size-5" />}
-													selected={values.payment.methodType === "card"}
-													readyLabel={cardSetupLabel}
-													onSelect={() => {
-														openPaymentSetup("card")
-													}}
-												/>
-												<PaymentMethodCard
-													title="Direct debit"
-													description="Prepare an AU BECS debit or save a mandate for later charges."
-													icon={<Landmark className="size-5" />}
-													selected={
-														values.payment.methodType === "au_becs_debit"
-													}
-													readyLabel={directDebitSetupLabel}
-													onSelect={() => {
-														openPaymentSetup("au_becs_debit")
-													}}
-												/>
-											</div>
+												<div className="grid gap-4 lg:grid-cols-3">
+													<PaymentMethodCard
+														title="Cash"
+														description="Record the first collection now or defer it to handover."
+														icon={<Banknote className="size-5" />}
+														selected={values.payment.methodType === "cash"}
+														readyLabel={cashSetupLabel}
+														onSelect={() => {
+															openPaymentSetup("cash")
+														}}
+													/>
+													<PaymentMethodCard
+														title="Card / POS"
+														description="Use Stripe Terminal to collect payment or save a card."
+														icon={<CreditCard className="size-5" />}
+														selected={values.payment.methodType === "card"}
+														readyLabel={cardSetupLabel}
+														onSelect={() => {
+															openPaymentSetup("card")
+														}}
+													/>
+													<PaymentMethodCard
+														title="Direct debit"
+														description="Prepare an AU BECS debit or save a mandate for later charges."
+														icon={<Landmark className="size-5" />}
+														selected={
+															values.payment.methodType === "au_becs_debit"
+														}
+														readyLabel={directDebitSetupLabel}
+														onSelect={() => {
+															openPaymentSetup("au_becs_debit")
+														}}
+													/>
+												</div>
 
-											<div className="rounded-[24px] border bg-muted/20 p-4">
-												<p className="text-sm font-semibold">
-													What this step does
-												</p>
-												<ul className="text-muted-foreground mt-3 space-y-2 text-sm">
-													<li>
-														{formatPaymentPlanLabel(
-															currentDetail.rental.paymentPlanKind,
-														)}{" "}
-														with{" "}
-														{formatTimingLabel(
-															currentDetail.rental.firstCollectionTiming,
-														).toLowerCase()}
-														.
-													</li>
-													<li>
-														Future automatic installments require a saved
-														payment method before finalization.
-													</li>
-													{stripeManagedRecurring ? (
+												<div className="rounded-[24px] border bg-muted/20 p-4">
+													<p className="text-sm font-semibold">
+														What this step does
+													</p>
+													<ul className="text-muted-foreground mt-3 space-y-2 text-sm">
 														<li>
-															Stripe recurring billing will start{" "}
-															{currentDetail.rental.firstCollectionTiming ===
-															"setup"
-																? "after finalize."
-																: "during handover."}
+															{formatPaymentPlanLabel(
+																currentDetail.rental.paymentPlanKind,
+															)}{" "}
+															with{" "}
+															{formatTimingLabel(
+																currentDetail.rental.firstCollectionTiming,
+															).toLowerCase()}
+															.
 														</li>
-													) : null}
-												</ul>
-											</div>
+														<li>
+															Future automatic installments require a saved
+															payment method before finalization.
+														</li>
+														{stripeManagedRecurring ? (
+															<li>
+																Stripe recurring billing will start{" "}
+																{currentDetail.rental.firstCollectionTiming ===
+																"setup"
+																	? "after finalize."
+																	: "during handover."}
+															</li>
+														) : null}
+													</ul>
+												</div>
 
-											<Button
-												type="button"
-												className="h-12 rounded-2xl px-5"
-												onClick={() => {
-													setActivePaymentSetupDrawer(values.payment.methodType)
-												}}
-											>
-												Open {paymentMethodLabel(values.payment.methodType)}{" "}
-												setup
-											</Button>
+												<Button
+													type="button"
+													className="h-12 rounded-2xl px-5"
+													onClick={() => {
+														setActivePaymentSetupDrawer(
+															values.payment.methodType,
+														)
+													}}
+												>
+													Open {paymentMethodLabel(values.payment.methodType)}{" "}
+													setup
+												</Button>
+											</div>
 										</div>
 
-										<div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-											<div className="rounded-[28px] border bg-background/95 p-5 sm:p-6">
+										<div
+											className={cn(
+												"space-y-6 lg:sticky lg:top-4 lg:self-start",
+												rentalWideColumnDividerClassName,
+											)}
+										>
+											<div className={cn(rentalSurfaceClassName, "space-y-4")}>
 												<p className="text-lg font-semibold">Draft summary</p>
-												<div className="mt-4 space-y-3 text-sm">
+												<div className="space-y-3 text-sm">
 													<div className="flex items-center justify-between">
 														<span className="text-muted-foreground">
 															Pricing bucket
@@ -2474,27 +2539,38 @@ export function RentalAppointmentDrawer({
 											</div>
 
 											{currentDetail.pricingSnapshot ? (
-												<>
+												<div
+													className={cn(
+														rentalInsetClassName,
+														"space-y-3 pt-5 sm:pt-6",
+													)}
+												>
 													<QuoteLineItems
 														lineItems={currentDetail.pricingSnapshot.lineItems}
 														currency={currentDetail.rental.currency}
 													/>
-													<div className="space-y-3 rounded-[28px] border bg-background/95 p-5 sm:p-6">
+													<div className="space-y-3">
 														<p className="text-base font-semibold">Schedule</p>
 														<PaymentSchedulePreviewCards
 															rows={currentDetail.paymentSchedule}
 															currency={currentDetail.rental.currency}
 														/>
 													</div>
-												</>
+												</div>
 											) : null}
 
 											{latestPendingPayment ? (
-												<div className="rounded-[24px] border p-4 text-sm">
-													<p className="font-semibold">Latest Stripe status</p>
-													<p className="text-muted-foreground mt-1">
-														{latestPendingPayment.status.replaceAll("_", " ")}
-													</p>
+												<div
+													className={cn(rentalInsetClassName, "pt-5 sm:pt-6")}
+												>
+													<div className="rounded-[24px] border p-4 text-sm">
+														<p className="font-semibold">
+															Latest Stripe status
+														</p>
+														<p className="text-muted-foreground mt-1">
+															{latestPendingPayment.status.replaceAll("_", " ")}
+														</p>
+													</div>
 												</div>
 											) : null}
 										</div>
@@ -2511,156 +2587,173 @@ export function RentalAppointmentDrawer({
 							currentDetail ? (
 								<FieldGroup className="space-y-6">
 									<div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-										<div className="space-y-6 rounded-[28px] border bg-background/90 p-5 sm:p-6">
-											<div>
-												<p className="text-xl font-semibold">Rental review</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													Review the final summary, capture agreement
-													confirmation, and finalize the rental.
-												</p>
-											</div>
+										<div className="space-y-6">
+											<div className={cn(rentalSurfaceClassName, "space-y-6")}>
+												<div>
+													<p className="text-sm font-semibold">Rental review</p>
+													<p className="text-muted-foreground mt-1 text-sm">
+														Review the final summary, capture agreement
+														confirmation, and finalize the rental.
+													</p>
+												</div>
 
-											<div className="grid gap-4 md:grid-cols-2">
-												<div className="rounded-[24px] border p-4">
-													<p className="text-muted-foreground text-xs uppercase">
-														Customer
-													</p>
-													<p className="mt-1 font-semibold">
-														{currentDetail.customer?.fullName ?? "Not set"}
-													</p>
-													<p className="text-muted-foreground text-sm">
-														{currentDetail.customer?.email ??
-															currentDetail.customer?.phone ??
-															"No contact"}
-													</p>
-												</div>
-												<div className="rounded-[24px] border p-4">
-													<p className="text-muted-foreground text-xs uppercase">
-														Vehicle
-													</p>
-													<p className="mt-1 font-semibold">
-														{currentDetail.vehicle?.label ?? "Not set"}
-													</p>
-													<p className="text-muted-foreground text-sm">
-														{currentDetail.vehicle?.licensePlate ?? "No plate"}
-													</p>
-												</div>
-												<div className="rounded-[24px] border p-4">
-													<p className="text-muted-foreground text-xs uppercase">
-														Pickup
-													</p>
-													<p className="mt-1 font-semibold">
-														{formatDateTime(
-															currentDetail.rental.plannedStartAt,
-														)}
-													</p>
-												</div>
-												<div className="rounded-[24px] border p-4">
-													<p className="text-muted-foreground text-xs uppercase">
-														Return
-													</p>
-													<p className="mt-1 font-semibold">
-														{formatDateTime(currentDetail.rental.plannedEndAt)}
-													</p>
-												</div>
-											</div>
-
-											{currentDetail.pricingSnapshot ? (
-												<>
-													<QuoteLineItems
-														lineItems={currentDetail.pricingSnapshot.lineItems}
-														currency={currentDetail.rental.currency}
-													/>
-													<PaymentScheduleTable
-														rows={currentDetail.paymentSchedule}
-														currency={currentDetail.rental.currency}
-													/>
-												</>
-											) : null}
-
-											<div className="rounded-[28px] border bg-muted/20 p-5">
-												<p className="text-base font-semibold">Agreement</p>
-												<p className="text-muted-foreground mt-1 text-sm">
-													The final agreement captures the payment method
-													strategy, installment authorization, and deposit
-													handling recorded in this draft.
-												</p>
-												<div className="mt-4 grid gap-4 md:grid-cols-2">
-													<Field>
-														<FieldLabel>Signer name</FieldLabel>
-														<Input
-															value={values.agreement.signerName}
-															onChange={(event) =>
-																setField("agreement", {
-																	...values.agreement,
-																	signerName: event.target.value,
-																})
-															}
-															className="h-12 rounded-2xl"
-														/>
-													</Field>
-													<Field>
-														<FieldLabel>Signature text</FieldLabel>
-														<Input
-															value={values.agreement.signature}
-															onChange={(event) =>
-																setField("agreement", {
-																	...values.agreement,
-																	signature: event.target.value,
-																})
-															}
-															className="h-12 rounded-2xl"
-														/>
-													</Field>
-												</div>
-												<label
-													htmlFor={agreementAcceptedSwitchId}
-													className="mt-4 flex items-start gap-3 rounded-[24px] border bg-background p-4"
-												>
-													<Switch
-														id={agreementAcceptedSwitchId}
-														checked={values.agreement.agreementAccepted}
-														onCheckedChange={(checked) =>
-															setField("agreement", {
-																...values.agreement,
-																agreementAccepted: checked,
-															})
-														}
-													/>
-													<span className="text-sm">
-														I confirm the renter accepted the agreement, payment
-														terms, and the authorization needed for future
-														scheduled collections.
-													</span>
-												</label>
-												{stripeManagedRecurring ? (
-													<div className="mt-4 rounded-[24px] border bg-background p-4 text-sm">
-														<p className="font-semibold">
-															Recurring billing summary
+												<div className="grid gap-4 md:grid-cols-2">
+													<div className="rounded-[24px] border p-4">
+														<p className="text-muted-foreground text-xs uppercase">
+															Customer
 														</p>
-														<p className="text-muted-foreground mt-1">
-															{paymentMethodLabel(
-																currentDetail.rental
-																	.selectedPaymentMethodType ?? "card",
-															)}{" "}
-															will be used for{" "}
-															{formatInstallmentIntervalLabel(
-																currentDetail.rental.installmentInterval,
-															).toLowerCase()}{" "}
-															recurring collections.{" "}
-															{describeRecurringStartTiming(
-																currentDetail.rental.firstCollectionTiming,
+														<p className="mt-1 font-semibold">
+															{currentDetail.customer?.fullName ?? "Not set"}
+														</p>
+														<p className="text-muted-foreground text-sm">
+															{currentDetail.customer?.email ??
+																currentDetail.customer?.phone ??
+																"No contact"}
+														</p>
+													</div>
+													<div className="rounded-[24px] border p-4">
+														<p className="text-muted-foreground text-xs uppercase">
+															Vehicle
+														</p>
+														<p className="mt-1 font-semibold">
+															{currentDetail.vehicle?.label ?? "Not set"}
+														</p>
+														<p className="text-muted-foreground text-sm">
+															{currentDetail.vehicle?.licensePlate ??
+																"No plate"}
+														</p>
+													</div>
+													<div className="rounded-[24px] border p-4">
+														<p className="text-muted-foreground text-xs uppercase">
+															Pickup
+														</p>
+														<p className="mt-1 font-semibold">
+															{formatDateTime(
+																currentDetail.rental.plannedStartAt,
 															)}
 														</p>
 													</div>
+													<div className="rounded-[24px] border p-4">
+														<p className="text-muted-foreground text-xs uppercase">
+															Return
+														</p>
+														<p className="mt-1 font-semibold">
+															{formatDateTime(
+																currentDetail.rental.plannedEndAt,
+															)}
+														</p>
+													</div>
+												</div>
+
+												{currentDetail.pricingSnapshot ? (
+													<>
+														<QuoteLineItems
+															lineItems={
+																currentDetail.pricingSnapshot.lineItems
+															}
+															currency={currentDetail.rental.currency}
+														/>
+														<PaymentScheduleTable
+															rows={currentDetail.paymentSchedule}
+															currency={currentDetail.rental.currency}
+														/>
+													</>
 												) : null}
+
+												<div
+													className={cn(
+														rentalInsetClassName,
+														"space-y-4 pt-5 sm:pt-6",
+													)}
+												>
+													<p className="text-base font-semibold">Agreement</p>
+													<p className="text-muted-foreground text-sm">
+														The final agreement captures the payment method
+														strategy, installment authorization, and deposit
+														handling recorded in this draft.
+													</p>
+													<div className="grid gap-4 md:grid-cols-2">
+														<Field>
+															<FieldLabel>Signer name</FieldLabel>
+															<Input
+																value={values.agreement.signerName}
+																onChange={(event) =>
+																	setField("agreement", {
+																		...values.agreement,
+																		signerName: event.target.value,
+																	})
+																}
+																className="h-12 rounded-2xl"
+															/>
+														</Field>
+														<Field>
+															<FieldLabel>Signature text</FieldLabel>
+															<Input
+																value={values.agreement.signature}
+																onChange={(event) =>
+																	setField("agreement", {
+																		...values.agreement,
+																		signature: event.target.value,
+																	})
+																}
+																className="h-12 rounded-2xl"
+															/>
+														</Field>
+													</div>
+													<label
+														htmlFor={agreementAcceptedSwitchId}
+														className="flex items-start gap-3 rounded-[24px] border bg-background p-4"
+													>
+														<Switch
+															id={agreementAcceptedSwitchId}
+															checked={values.agreement.agreementAccepted}
+															onCheckedChange={(checked) =>
+																setField("agreement", {
+																	...values.agreement,
+																	agreementAccepted: checked,
+																})
+															}
+														/>
+														<span className="text-sm">
+															I confirm the renter accepted the agreement,
+															payment terms, and the authorization needed for
+															future scheduled collections.
+														</span>
+													</label>
+													{stripeManagedRecurring ? (
+														<div className="rounded-[24px] border bg-background p-4 text-sm">
+															<p className="font-semibold">
+																Recurring billing summary
+															</p>
+															<p className="text-muted-foreground mt-1">
+																{paymentMethodLabel(
+																	currentDetail.rental
+																		.selectedPaymentMethodType ?? "card",
+																)}{" "}
+																will be used for{" "}
+																{formatInstallmentIntervalLabel(
+																	currentDetail.rental.installmentInterval,
+																).toLowerCase()}{" "}
+																recurring collections.{" "}
+																{describeRecurringStartTiming(
+																	currentDetail.rental.firstCollectionTiming,
+																)}
+															</p>
+														</div>
+													) : null}
+												</div>
 											</div>
 										</div>
 
-										<div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-											<div className="rounded-[28px] border bg-background/95 p-5 sm:p-6">
+										<div
+											className={cn(
+												"space-y-6 lg:sticky lg:top-4 lg:self-start",
+												rentalWideColumnDividerClassName,
+											)}
+										>
+											<div className={cn(rentalSurfaceClassName, "space-y-4")}>
 												<p className="text-lg font-semibold">Finalize state</p>
-												<div className="mt-4 space-y-3 text-sm">
+												<div className="space-y-3 text-sm">
 													<div className="flex items-center justify-between">
 														<span className="text-muted-foreground">
 															Status after finalize
@@ -2733,11 +2826,16 @@ export function RentalAppointmentDrawer({
 											</div>
 
 											{recurringDebugRows.length > 0 ? (
-												<div className="rounded-[28px] border bg-background/95 p-5 sm:p-6">
+												<div
+													className={cn(
+														rentalInsetClassName,
+														"space-y-3 pt-5 sm:pt-6",
+													)}
+												>
 													<p className="text-base font-semibold">
 														Stripe references
 													</p>
-													<div className="mt-4 space-y-3 text-xs">
+													<div className="space-y-3 text-xs">
 														{recurringDebugRows.map((row) => (
 															<div
 																key={`review-${row.id}`}
@@ -2767,7 +2865,7 @@ export function RentalAppointmentDrawer({
 					</div>
 				</div>
 
-				<DrawerFooter className="shrink-0 border-t bg-background/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8">
+				<DrawerFooter className="shrink-0 border-t bg-sidebar px-4 py-4 sm:px-6 lg:px-8">
 					<div className="mx-auto flex w-full max-w-390 flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<Button
 							type="button"
