@@ -2,9 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { ChevronDown, Search } from "lucide-react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
-	Suspense,
 	startTransition,
 	useCallback,
 	useEffect,
@@ -30,7 +29,6 @@ import {
 	InputGroupInput,
 } from "@/components/ui/input-group"
 import { ResponsiveDrawer } from "@/components/ui/responsive-drawer"
-import { Separator } from "@/components/ui/separator"
 import {
 	AppWheelPicker,
 	type WheelPickerOption,
@@ -51,6 +49,15 @@ const pageSizeOptions = ["10", "25", "50", "100"] as const
 type WheelFilterOption = {
 	value: string
 	label: string
+}
+
+type CustomerManagementProps = {
+	initialPage?: string
+	initialPageSize?: string
+	initialSearch?: string
+	initialBranchId?: string
+	initialVerificationStatus?: string
+	initialStatus?: string
 }
 
 function parsePositiveInt(value: string | null, fallback: number) {
@@ -201,25 +208,36 @@ function WheelFilterField({
 	)
 }
 
-function CustomerManagementContent() {
+function CustomerManagementContent({
+	initialPage,
+	initialPageSize,
+	initialSearch,
+	initialBranchId,
+	initialVerificationStatus,
+	initialStatus,
+}: CustomerManagementProps) {
 	const queryClient = useQueryClient()
 	const router = useRouter()
 	const pathname = usePathname()
-	const searchParams = useSearchParams()
 	const authContextQuery = useAuthContextQuery()
 	const activeOrganizationId =
 		authContextQuery.data?.viewer.activeOrganizationId ?? undefined
 
-	const page = parsePositiveInt(searchParams.get("page"), 1)
-	const pageSize = parsePositiveInt(searchParams.get("pageSize"), 25)
-	const search = searchParams.get("search")?.trim() ?? ""
-	const branchId = searchParams.get("branchId")?.trim() ?? ""
-	const verificationStatus =
-		searchParams.get("verificationStatus")?.trim() ?? ""
-	const status = searchParams.get("status")?.trim() ?? "all"
-	const selectedCustomerId = searchParams.get("customer")?.trim() ?? null
+	const page = parsePositiveInt(initialPage ?? null, 1)
+	const pageSize = parsePositiveInt(initialPageSize ?? null, 25)
+	const search = initialSearch?.trim() ?? ""
+	const branchId = initialBranchId?.trim() ?? ""
+	const verificationStatus = initialVerificationStatus?.trim() ?? ""
+	const status = initialStatus?.trim() ?? "all"
 
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
+	const [selectedCustomerState, setSelectedCustomerState] = useState<{
+		organizationId?: string
+		customerId: string | null
+	}>({
+		organizationId: undefined,
+		customerId: null,
+	})
 	const [editSection, setEditSection] = useState<CustomerEditSection | null>(
 		null,
 	)
@@ -228,9 +246,39 @@ function CustomerManagementContent() {
 	const [createError, setCreateError] = useState<string | null>(null)
 	const [editError, setEditError] = useState<string | null>(null)
 
+	const buildUrlParams = useCallback(() => {
+		const params = new URLSearchParams()
+
+		if (search) {
+			params.set("search", search)
+		}
+
+		if (branchId) {
+			params.set("branchId", branchId)
+		}
+
+		if (verificationStatus) {
+			params.set("verificationStatus", verificationStatus)
+		}
+
+		if (status !== "all") {
+			params.set("status", status)
+		}
+
+		if (page !== 1) {
+			params.set("page", String(page))
+		}
+
+		if (pageSize !== 25) {
+			params.set("pageSize", String(pageSize))
+		}
+
+		return params
+	}, [branchId, page, pageSize, search, status, verificationStatus])
+
 	const updateUrl = useCallback(
 		(mutator: (params: URLSearchParams) => void) => {
-			const params = new URLSearchParams(searchParams.toString())
+			const params = buildUrlParams()
 			mutator(params)
 			const query = params.toString()
 			startTransition(() => {
@@ -239,8 +287,13 @@ function CustomerManagementContent() {
 				})
 			})
 		},
-		[pathname, router, searchParams],
+		[buildUrlParams, pathname, router],
 	)
+
+	const selectedCustomerId =
+		selectedCustomerState.organizationId === activeOrganizationId
+			? selectedCustomerState.customerId
+			: null
 
 	const listQuery = useCustomerListQuery({
 		organizationId: activeOrganizationId,
@@ -303,8 +356,9 @@ function CustomerManagementContent() {
 			setIsCreateOpen(false)
 			await invalidateCustomerQueries()
 			toast.success("Customer created.")
-			updateUrl((params) => {
-				params.set("customer", result.id)
+			setSelectedCustomerState({
+				organizationId: activeOrganizationId,
+				customerId: result.id,
 			})
 		},
 		onError: (error) => {
@@ -392,9 +446,12 @@ function CustomerManagementContent() {
 			toast.success("Customer deleted.")
 
 			if (selectedCustomerId === target.id) {
-				updateUrl((params) => {
-					params.delete("customer")
+				setSelectedCustomerState({
+					organizationId: activeOrganizationId,
+					customerId: null,
 				})
+				setEditSection(null)
+				setEditError(null)
 			}
 		},
 		onError: (error) => {
@@ -483,17 +540,6 @@ function CustomerManagementContent() {
 				</section>
 
 				<section className="space-y-4">
-					<div className="space-y-2">
-						<div className="space-y-1">
-							<h2 className="text-base font-semibold">Customer details</h2>
-							<p className="text-muted-foreground text-sm">
-								Search, filter, and open any row for a focused right-side detail
-								view.
-							</p>
-						</div>
-						<Separator />
-					</div>
-
 					<div className="grid gap-3 rounded-2xl p-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))_auto]">
 						<CustomerSearchInput
 							key={search}
@@ -600,8 +646,9 @@ function CustomerManagementContent() {
 							})
 						}
 						onRowClick={(customerId) =>
-							updateUrl((params) => {
-								params.set("customer", customerId)
+							setSelectedCustomerState({
+								organizationId: activeOrganizationId,
+								customerId,
 							})
 						}
 						onToggleBan={(customer) => setStatusTarget(customer)}
@@ -724,13 +771,15 @@ function CustomerManagementContent() {
 				open={hasDrawerOpen}
 				onOpenChange={(open) => {
 					if (!open) {
-						updateUrl((params) => {
-							params.delete("customer")
+						setSelectedCustomerState({
+							organizationId: activeOrganizationId,
+							customerId: null,
 						})
+						setEditSection(null)
+						setEditError(null)
 					}
 				}}
 				customer={selectedCustomer}
-				hasRentalHistory={Boolean(detailQuery.data?.hasRentalHistory)}
 				isLoading={detailQuery.isPending && hasDrawerOpen}
 				errorMessage={detailErrorMessage}
 				canManageCustomers={canManageCustomers}
@@ -743,18 +792,6 @@ function CustomerManagementContent() {
 	)
 }
 
-export function CustomerManagement() {
-	return (
-		<Suspense
-			fallback={
-				<div className="space-y-6">
-					<p className="text-muted-foreground text-sm">
-						Loading customer workspace...
-					</p>
-				</div>
-			}
-		>
-			<CustomerManagementContent />
-		</Suspense>
-	)
+export function CustomerManagement(props: CustomerManagementProps) {
+	return <CustomerManagementContent {...props} />
 }

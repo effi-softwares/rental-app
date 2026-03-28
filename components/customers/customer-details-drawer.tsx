@@ -2,7 +2,6 @@
 
 import {
 	BadgeCheck,
-	Building2,
 	CalendarClock,
 	LoaderCircle,
 	Mail,
@@ -11,7 +10,6 @@ import {
 	ShieldBan,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
 	Drawer,
@@ -31,13 +29,12 @@ import {
 import type { CustomerDetail } from "@/features/customers/types"
 import { useIsMobile } from "@/hooks/use-mobile"
 
-type EditableSection = "identity" | "contact" | "branch" | "verification"
+type EditableSection = "identity" | "contact" | "verification"
 
 type CustomerDetailsDrawerProps = {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	customer: CustomerDetail | null
-	hasRentalHistory: boolean
 	isLoading: boolean
 	errorMessage: string | null
 	canManageCustomers: boolean
@@ -128,7 +125,6 @@ function DetailValue({
 
 function DrawerBody({
 	customer,
-	hasRentalHistory,
 	isLoading,
 	errorMessage,
 	canManageCustomers,
@@ -161,32 +157,6 @@ function DrawerBody({
 	return (
 		<div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
 			<div className="space-y-4 py-2">
-				<div className="space-y-3">
-					<div className="flex flex-wrap items-center gap-2">
-						<Badge
-							variant={
-								customer.status === "banned" ? "destructive" : "secondary"
-							}
-						>
-							{customer.status === "banned" ? "Banned" : "Active"}
-						</Badge>
-						<Badge variant="outline">
-							{formatVerificationStatus(customer.verificationStatus)}
-						</Badge>
-						{hasRentalHistory ? (
-							<Badge variant="outline">Rental history on file</Badge>
-						) : null}
-					</div>
-					<div>
-						<h2 className="text-xl font-semibold">{customer.fullName}</h2>
-						<p className="text-muted-foreground text-sm">
-							Customer profile and operating status.
-						</p>
-					</div>
-				</div>
-
-				<Separator />
-
 				<DetailSection
 					title="Identity"
 					description="Primary profile name shown across workspace records."
@@ -216,21 +186,6 @@ function DrawerBody({
 							icon={<Phone className="text-muted-foreground size-4" />}
 						/>
 					</div>
-				</DetailSection>
-
-				<Separator />
-
-				<DetailSection
-					title="Branch"
-					description="Operational branch currently responsible for this profile."
-					onEdit={() => onEditSection("branch")}
-					canManageCustomers={canManageCustomers}
-				>
-					<DetailValue
-						label="Assigned branch"
-						value={customer.branchName ?? "Unassigned"}
-						icon={<Building2 className="text-muted-foreground size-4" />}
-					/>
 				</DetailSection>
 
 				<Separator />
@@ -318,7 +273,7 @@ export function CustomerDetailsDrawer(props: CustomerDetailsDrawerProps) {
 	if (isMobile) {
 		return (
 			<Drawer open={props.open} onOpenChange={props.onOpenChange}>
-				<DrawerContent className="max-h-[94vh] overflow-hidden rounded-t-2xl">
+				<DrawerContent className="bg-sidebar max-h-[94vh] overflow-hidden rounded-t-2xl">
 					<DrawerHeader>
 						<DrawerTitle>Customer details</DrawerTitle>
 						<DrawerDescription>
@@ -335,7 +290,7 @@ export function CustomerDetailsDrawer(props: CustomerDetailsDrawerProps) {
 		<Sheet open={props.open} onOpenChange={props.onOpenChange}>
 			<SheetContent
 				side="right"
-				className="w-full gap-0 p-0 data-[side=right]:!w-[50vw] data-[side=right]:!max-w-none"
+				className="bg-sidebar w-full gap-0 p-0 data-[side=right]:!w-[50vw] data-[side=right]:!max-w-none"
 			>
 				<SheetHeader className="border-b pb-4">
 					<SheetTitle>Customer details</SheetTitle>
