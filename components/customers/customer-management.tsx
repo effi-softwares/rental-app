@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { ChevronDown, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import {
 	startTransition,
@@ -23,16 +23,9 @@ import { ResponsiveConfirmDialog } from "@/components/customers/responsive-confi
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupButton,
-	InputGroupInput,
-} from "@/components/ui/input-group"
-import { ResponsiveDrawer } from "@/components/ui/responsive-drawer"
-import {
-	AppWheelPicker,
-	type WheelPickerOption,
-} from "@/components/ui/wheel-picker"
+	WheelSelectField,
+	type WheelSelectOption,
+} from "@/components/ui/wheel-select-field"
 import {
 	CUSTOMER_STATUSES,
 	CUSTOMER_VERIFICATION_STATUSES,
@@ -46,10 +39,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { resolveErrorMessage } from "@/lib/errors"
 
 const pageSizeOptions = ["10", "25", "50", "100"] as const
-type WheelFilterOption = {
-	value: string
-	label: string
-}
 
 type CustomerManagementProps = {
 	initialPage?: string
@@ -123,88 +112,6 @@ function CustomerSearchInput({
 				placeholder="Search by customer, email, or phone"
 			/>
 		</div>
-	)
-}
-
-function WheelFilterField({
-	value,
-	options,
-	placeholder,
-	title,
-	description,
-	onValueChange,
-}: {
-	value: string
-	options: WheelFilterOption[]
-	placeholder: string
-	title: string
-	description: string
-	onValueChange: (value: string) => void
-}) {
-	const [open, setOpen] = useState(false)
-	const wheelOptions = options as WheelPickerOption<string>[]
-	const safeValue =
-		options.find((option) => option.value === value)?.value ??
-		options[0]?.value ??
-		""
-	const selectedOption =
-		options.find((option) => option.value === safeValue) ?? options[0] ?? null
-	const [pendingValue, setPendingValue] = useState(safeValue)
-
-	useEffect(() => {
-		if (!open) {
-			setPendingValue(safeValue)
-		}
-	}, [open, safeValue])
-
-	return (
-		<>
-			<InputGroup className="h-11">
-				<InputGroupInput
-					readOnly
-					value={selectedOption?.label ?? ""}
-					placeholder={placeholder}
-					onClick={() => setOpen(true)}
-					className="h-full cursor-pointer"
-				/>
-				<InputGroupAddon align="inline-end">
-					<InputGroupButton size="icon-sm" onClick={() => setOpen(true)}>
-						<ChevronDown className="size-4" />
-						<span className="sr-only">Open selector</span>
-					</InputGroupButton>
-				</InputGroupAddon>
-			</InputGroup>
-
-			<ResponsiveDrawer
-				open={open}
-				onOpenChange={setOpen}
-				title={title}
-				description={description}
-				desktopClassName="max-h-[88vh] overflow-hidden sm:max-w-sm"
-				mobileClassName="max-h-[88vh] rounded-t-3xl p-0"
-			>
-				<div className="space-y-4 pt-1">
-					<AppWheelPicker
-						value={pendingValue}
-						onValueChange={setPendingValue}
-						options={wheelOptions}
-						visibleCount={14}
-						optionItemHeight={42}
-						className="rounded-3xl p-4"
-					/>
-					<button
-						type="button"
-						className="bg-primary text-primary-foreground h-12 w-full rounded-2xl px-4 text-sm font-medium"
-						onClick={() => {
-							onValueChange(pendingValue)
-							setOpen(false)
-						}}
-					>
-						Apply
-					</button>
-				</div>
-			</ResponsiveDrawer>
-		</>
 	)
 }
 
@@ -474,7 +381,7 @@ function CustomerManagementContent({
 	const hasActiveFilters = Boolean(
 		search || verificationStatus || status !== "all" || pageSize !== 25,
 	)
-	const verificationFilterOptions = useMemo<WheelFilterOption[]>(
+	const verificationFilterOptions = useMemo<WheelSelectOption[]>(
 		() => [
 			{ value: "__all__", label: "All verification" },
 			...CUSTOMER_VERIFICATION_STATUSES.map((statusValue) => ({
@@ -484,7 +391,7 @@ function CustomerManagementContent({
 		],
 		[],
 	)
-	const statusFilterOptions = useMemo<WheelFilterOption[]>(
+	const statusFilterOptions = useMemo<WheelSelectOption[]>(
 		() => [
 			{ value: "all", label: "All statuses" },
 			{ value: "active", label: "Active" },
@@ -492,7 +399,7 @@ function CustomerManagementContent({
 		],
 		[],
 	)
-	const pageSizeFilterOptions = useMemo<WheelFilterOption[]>(
+	const pageSizeFilterOptions = useMemo<WheelSelectOption[]>(
 		() =>
 			pageSizeOptions.map((option) => ({
 				value: option,
@@ -556,7 +463,7 @@ function CustomerManagementContent({
 							}
 						/>
 
-						<WheelFilterField
+						<WheelSelectField
 							value={verificationStatus || "__all__"}
 							options={verificationFilterOptions}
 							placeholder="All verification"
@@ -574,7 +481,7 @@ function CustomerManagementContent({
 							}
 						/>
 
-						<WheelFilterField
+						<WheelSelectField
 							value={
 								CUSTOMER_STATUSES.includes(
 									status as (typeof CUSTOMER_STATUSES)[number],
@@ -598,7 +505,7 @@ function CustomerManagementContent({
 							}
 						/>
 
-						<WheelFilterField
+						<WheelSelectField
 							value={String(pageSize)}
 							options={pageSizeFilterOptions}
 							placeholder="Page size"

@@ -15,7 +15,6 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	ChevronUp,
-	Columns3,
 	HandCoins,
 	MoreVertical,
 	Search,
@@ -29,7 +28,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
 	DropdownMenu,
-	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
@@ -38,13 +36,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -52,6 +43,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
+import {
+	WheelSelectField,
+	type WheelSelectOption,
+} from "@/components/ui/wheel-select-field"
 import type { VehicleStatus, VehicleSummary } from "@/features/vehicles"
 
 type VehicleCatalogTableProps = {
@@ -139,17 +134,39 @@ export function VehicleCatalogTable({
 		Array<{ id: string; value: unknown }>
 	>([])
 	const [globalFilter, setGlobalFilter] = useState("")
-	const [columnVisibility, setColumnVisibility] = useState<
-		Record<string, boolean>
-	>({})
 
-	const fuelTypeOptions = useMemo(() => {
-		return [...new Set(vehicles.map((vehicle) => vehicle.fuelType))].sort()
+	const fuelFilterOptions = useMemo<WheelSelectOption[]>(() => {
+		return [
+			{ value: "all", label: "All fuel" },
+			...[...new Set(vehicles.map((vehicle) => vehicle.fuelType))]
+				.sort()
+				.map((fuelType) => ({
+					value: fuelType,
+					label: fuelType,
+				})),
+		]
 	}, [vehicles])
 
-	const statusOptions = useMemo(() => {
-		return [...new Set(vehicles.map((vehicle) => vehicle.status))].sort()
+	const statusFilterOptions = useMemo<WheelSelectOption[]>(() => {
+		return [
+			{ value: "all", label: "All status" },
+			...[...new Set(vehicles.map((vehicle) => vehicle.status))]
+				.sort()
+				.map((status) => ({
+					value: status,
+					label: status,
+				})),
+		]
 	}, [vehicles])
+
+	const pageSizeFilterOptions = useMemo<WheelSelectOption[]>(
+		() =>
+			pageSizeOptions.map((size) => ({
+				value: String(size),
+				label: `${size} per page`,
+			})),
+		[],
+	)
 
 	const columns = useMemo<Array<ColumnDef<VehicleSummary>>>(
 		() => [
@@ -337,12 +354,10 @@ export function VehicleCatalogTable({
 			sorting,
 			columnFilters,
 			globalFilter,
-			columnVisibility,
 		},
 		onSortingChange: setSorting,
 		onColumnFiltersChange: setColumnFilters,
 		onGlobalFilterChange: setGlobalFilter,
-		onColumnVisibilityChange: setColumnVisibility,
 		globalFilterFn: (row, _columnId, value) => {
 			const searchValue = String(value ?? "")
 				.trim()
@@ -382,189 +397,157 @@ export function VehicleCatalogTable({
 	const { pageIndex, pageSize } = table.getState().pagination
 	const pageStart = totalFilteredRows === 0 ? 0 : pageIndex * pageSize + 1
 	const pageEnd = Math.min((pageIndex + 1) * pageSize, totalFilteredRows)
+	const statusFilterValue = String(
+		table.getColumn("status")?.getFilterValue() ?? "all",
+	)
+	const fuelFilterValue = String(
+		table.getColumn("fuelType")?.getFilterValue() ?? "all",
+	)
+	const hasActiveFilters = Boolean(
+		globalFilter.trim() ||
+			statusFilterValue !== "all" ||
+			fuelFilterValue !== "all" ||
+			pageSize !== 10,
+	)
 
 	return (
-		<section className="space-y-4 rounded-xl border">
-			<header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-				<div>
-					<p className="text-sm font-medium">Fleet list</p>
-					<p className="text-muted-foreground text-xs">
-						Search, filter, and sort your vehicles.
-					</p>
+		<section className="space-y-4">
+			<div className="grid gap-3 rounded-2xl p-3 lg:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))_auto]">
+				<div className="relative">
+					<Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+					<Input
+						value={globalFilter}
+						onChange={(event) => setGlobalFilter(event.target.value)}
+						placeholder="Search by vehicle, plate, fuel, status"
+						className="h-11 pl-9"
+					/>
 				</div>
-				<Badge variant="outline">{vehicles.length} vehicles</Badge>
-			</header>
 
-			<div className="space-y-3 px-4 pt-1">
-				<div className="grid gap-2 lg:grid-cols-[1fr_180px_180px_auto_auto]">
-					<div className="relative">
-						<Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-						<Input
-							value={globalFilter}
-							onChange={(event) => setGlobalFilter(event.target.value)}
-							placeholder="Search by vehicle, plate, fuel, status"
-							className="h-10 pl-9"
-						/>
-					</div>
+				<WheelSelectField
+					value={statusFilterValue}
+					options={statusFilterOptions}
+					placeholder="All status"
+					title="Filter vehicle status"
+					description="Choose which vehicle status to show in the table."
+					onValueChange={(value) => {
+						table
+							.getColumn("status")
+							?.setFilterValue(value === "all" ? undefined : value)
+						table.setPageIndex(0)
+					}}
+				/>
 
-					<Select
-						value={String(table.getColumn("status")?.getFilterValue() ?? "all")}
-						onValueChange={(value) => {
-							table
-								.getColumn("status")
-								?.setFilterValue(value === "all" ? undefined : value)
-						}}
-					>
-						<SelectTrigger className="h-10 w-full">
-							<SelectValue placeholder="Status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All status</SelectItem>
-							{statusOptions.map((status) => (
-								<SelectItem key={status} value={status}>
-									{status}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+				<WheelSelectField
+					value={fuelFilterValue}
+					options={fuelFilterOptions}
+					placeholder="All fuel"
+					title="Filter fuel type"
+					description="Choose which fuel type to show in the table."
+					onValueChange={(value) => {
+						table
+							.getColumn("fuelType")
+							?.setFilterValue(value === "all" ? undefined : value)
+						table.setPageIndex(0)
+					}}
+				/>
 
-					<Select
-						value={String(
-							table.getColumn("fuelType")?.getFilterValue() ?? "all",
-						)}
-						onValueChange={(value) => {
-							table
-								.getColumn("fuelType")
-								?.setFilterValue(value === "all" ? undefined : value)
-						}}
-					>
-						<SelectTrigger className="h-10 w-full">
-							<SelectValue placeholder="Fuel" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All fuel</SelectItem>
-							{fuelTypeOptions.map((fuelType) => (
-								<SelectItem key={fuelType} value={fuelType}>
-									{fuelType}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+				<WheelSelectField
+					value={String(pageSize)}
+					options={pageSizeFilterOptions}
+					placeholder="Rows per page"
+					title="Rows per page"
+					description="Choose how many vehicle rows to load per page."
+					onValueChange={(value) => {
+						table.setPageSize(Number(value))
+						table.setPageIndex(0)
+					}}
+				/>
 
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button type="button" variant="outline" className="h-10">
-								<Columns3 />
-								Columns
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-44">
-							<DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							{table
-								.getAllColumns()
-								.filter((column) => column.getCanHide())
-								.map((column) => (
-									<DropdownMenuCheckboxItem
-										key={column.id}
-										checked={column.getIsVisible()}
-										onCheckedChange={(isChecked) =>
-											column.toggleVisibility(Boolean(isChecked))
-										}
-									>
-										{column.id === "createdAt" ? "Created" : column.id}
-									</DropdownMenuCheckboxItem>
-								))}
-						</DropdownMenuContent>
-					</DropdownMenu>
-
-					<Button
-						type="button"
-						variant="outline"
-						className="h-10"
-						onClick={() => {
-							setGlobalFilter("")
-							table.resetColumnFilters()
-							setSorting([])
-						}}
-					>
-						Reset
-					</Button>
-				</div>
+				<Button
+					type="button"
+					variant="outline"
+					className="h-11"
+					disabled={!hasActiveFilters}
+					onClick={() => {
+						setGlobalFilter("")
+						table.resetColumnFilters()
+						setSorting([])
+						table.setPageSize(10)
+						table.setPageIndex(0)
+					}}
+				>
+					Reset filters
+				</Button>
 			</div>
 
-			<div className="px-4 pb-2">
-				<Table>
-					<TableHeader>
-						{table.getHeaderGroups().map((headerGroup) => (
-							<TableRow key={headerGroup.id}>
-								{headerGroup.headers.map((header) => (
-									<TableHead key={header.id}>
-										{header.isPlaceholder
-											? null
-											: flexRender(
-													header.column.columnDef.header,
-													header.getContext(),
-												)}
-									</TableHead>
-								))}
-							</TableRow>
-						))}
-					</TableHeader>
-					<TableBody>
-						{table.getRowModel().rows.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={columns.length}
-									className="text-muted-foreground h-24 text-center"
-								>
-									No vehicles match your current filters.
-								</TableCell>
-							</TableRow>
-						) : (
-							table.getRowModel().rows.map((row) => (
+			<div className="overflow-hidden rounded-2xl border">
+				<div className="overflow-x-auto px-4 pb-2 pt-1">
+					<Table>
+						<TableHeader>
+							{table.getHeaderGroups().map((headerGroup) => (
 								<TableRow
-									key={row.id}
-									onClick={() => onOpenVehicle(row.original.id)}
-									className="cursor-pointer"
+									key={headerGroup.id}
+									className="bg-muted/20 hover:bg-muted/20"
 								>
-									{row.getVisibleCells().map((cell) => (
-										<TableCell key={cell.id}>
-											{flexRender(
-												cell.column.columnDef.cell,
-												cell.getContext(),
-											)}
-										</TableCell>
+									{headerGroup.headers.map((header) => (
+										<TableHead key={header.id}>
+											{header.isPlaceholder
+												? null
+												: flexRender(
+														header.column.columnDef.header,
+														header.getContext(),
+													)}
+										</TableHead>
 									))}
 								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
+							))}
+						</TableHeader>
+						<TableBody>
+							{table.getRowModel().rows.length === 0 ? (
+								<TableRow>
+									<TableCell
+										colSpan={columns.length}
+										className="h-28 text-center"
+									>
+										<div className="space-y-1">
+											<p className="font-medium">No vehicles found</p>
+											<p className="text-muted-foreground text-sm">
+												Adjust your filters to see more vehicles.
+											</p>
+										</div>
+									</TableCell>
+								</TableRow>
+							) : (
+								table.getRowModel().rows.map((row) => (
+									<TableRow
+										key={row.id}
+										onClick={() => onOpenVehicle(row.original.id)}
+										className="cursor-pointer transition-colors hover:bg-muted/20"
+									>
+										{row.getVisibleCells().map((cell) => (
+											<TableCell key={cell.id}>
+												{flexRender(
+													cell.column.columnDef.cell,
+													cell.getContext(),
+												)}
+											</TableCell>
+										))}
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</div>
 			</div>
 
-			<footer className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
-				<div className="text-muted-foreground text-xs">
-					Showing {pageStart}-{pageEnd} of {totalFilteredRows} vehicles
+			<footer className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div className="text-muted-foreground text-sm">
+					{totalFilteredRows === 0
+						? "No vehicles"
+						: `Showing ${pageStart}-${pageEnd} of ${totalFilteredRows} vehicles`}
 				</div>
 
-				<div className="flex flex-wrap items-center gap-2">
-					<Select
-						value={String(pageSize)}
-						onValueChange={(value) => table.setPageSize(Number(value))}
-					>
-						<SelectTrigger className="h-9 w-28">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{pageSizeOptions.map((size) => (
-								<SelectItem key={size} value={String(size)}>
-									{size} / page
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-
+				<div className="flex flex-wrap items-center gap-2 sm:justify-end">
 					<div className="text-muted-foreground px-2 text-xs">
 						Page {pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
 					</div>

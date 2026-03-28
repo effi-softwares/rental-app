@@ -961,10 +961,10 @@ export function VehicleCatalogManagement() {
 	if (!activeOrganizationId) {
 		return (
 			<section className="space-y-3">
-				<PageSectionHeader
-					title="Vehicle catalog"
-					description="Select an active organization first."
-				/>
+				<PageSectionHeader title="Vehicle Catalog" />
+				<p className="text-muted-foreground text-sm">
+					Select an active organization first.
+				</p>
 			</section>
 		)
 	}
@@ -1011,10 +1011,9 @@ export function VehicleCatalogManagement() {
 	}
 
 	return (
-		<section className="space-y-5">
+		<section className="space-y-8">
 			<PageSectionHeader
 				title="Vehicle Catalog"
-				description="Manage your rental fleet inventory with touch-friendly workflows."
 				actions={
 					canManageVehicles ? (
 						<Button
@@ -1037,13 +1036,12 @@ export function VehicleCatalogManagement() {
 			) : null}
 
 			{isLoadingList ? (
-				<section className="rounded-xl border px-4 py-8 text-sm text-muted-foreground">
+				<section className="rounded-2xl border px-4 py-8 text-sm text-muted-foreground">
 					Loading vehicle catalog...
 				</section>
 			) : vehicles.length === 0 ? (
-				<section className="rounded-xl border px-4 py-8 text-sm text-muted-foreground">
-					No vehicles yet. Add your first vehicle to start managing availability
-					and rates.
+				<section className="rounded-2xl border px-4 py-8 text-sm text-muted-foreground">
+					No vehicles yet. Add your first vehicle to get started.
 				</section>
 			) : (
 				<VehicleCatalogTable
