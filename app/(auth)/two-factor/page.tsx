@@ -33,7 +33,6 @@ export default async function TwoFactorPage() {
 
 	return (
 		<AuthPageShell
-			eyebrow="Two-factor check"
 			title="Verify your sign-in"
 			description="Use your authentication method to continue securely into the dashboard."
 			visualVariant="two-factor"

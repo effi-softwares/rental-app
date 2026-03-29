@@ -2284,7 +2284,6 @@ export function VehicleDetails({ vehicleId }: VehicleDetailsProps) {
 				<div className="space-y-4">
 					<VehicleImageGroupUpload
 						title={imageGroupLabels[imageDraftGroup].title}
-						description={imageGroupLabels[imageDraftGroup].description}
 						assets={imageDraftAssets}
 						isUploading={uploadImagesMutation.isPending}
 						uploadProgressByFile={uploadProgressByFile}

@@ -26,7 +26,6 @@ export default async function SignUpOnboardingPage() {
 
 	return (
 		<AuthPageShell
-			eyebrow="Organization setup"
 			title="Set up your organization"
 			description="Create your first organization to finish the owner sign-up flow."
 			visualVariant="onboarding"

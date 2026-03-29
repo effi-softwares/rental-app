@@ -9,7 +9,6 @@ import { routes } from "@/config/routes"
 export default function AuthForbidden() {
 	return (
 		<AuthPageShell
-			eyebrow="Access restricted"
 			title="Authentication access restricted"
 			description="You do not have permission to open this authentication flow right now."
 			visualVariant="status"

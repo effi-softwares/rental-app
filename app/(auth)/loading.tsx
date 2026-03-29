@@ -6,7 +6,6 @@ import { AuthPanel } from "@/components/auth/auth-panel"
 export default function AuthLoading() {
 	return (
 		<AuthPageShell
-			eyebrow="Preparing session"
 			title="Loading dashboard access"
 			description="Fetching organization modules, permissions, fleet activity, customer data, and recent rental updates."
 			visualVariant="status"

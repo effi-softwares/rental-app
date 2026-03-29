@@ -16,7 +16,6 @@ type AuthErrorProps = {
 export default function AuthError({ error, reset }: AuthErrorProps) {
 	return (
 		<AuthPageShell
-			eyebrow="Authentication error"
 			title="Secure sign-in hit a problem"
 			description="We ran into an unexpected issue while preparing authentication. Retry the flow or return to the sign-in screen."
 			visualVariant="status"
